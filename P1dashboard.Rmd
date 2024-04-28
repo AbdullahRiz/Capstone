@@ -1,0 +1,1510 @@
+---
+title: "Rail Network Analysis"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    vertical_layout: scroll
+  
+---
+
+<style>                     
+.navbar {
+  background-color:crimson;
+  border-color:black;
+}
+.navbar-brand {
+color:black!important;
+}
+
+
+</style>   
+
+
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(tidyverse)
+library(lubridate)
+library(usmap)
+library(mapview)
+library(knitr)
+library(data.table)
+library(tidyr)
+library(dplyr)
+library(DT)
+library(rpivotTable)
+library(biclust)
+```
+
+
+Introduction
+=======================================================================
+
+The goal of this project is to identify geographical regions which, although not directly vulnerable to climate risk, have an implicit vulnerability to physical risks due to infrastructure related or other geographic vulnerabilities. This work will focus initially on the vulnerability of critical transport networks, specifically rail lines.
+
+
+
+
+Our goal is to create a model to predict the probability of future climate events occurring in a certain region of the United States with the help of past climate data from the National Oceanic and Atmospheric Administration[NOAA](https://www.ncei.noaa.gov/pub/data/swdi/stormevents/csvfiles/). Once the model is complete we will map rail network lines within these affected regions with data from the U.S. Department of Transportation [USDOT](https://geodata.bts.gov/datasets/usdot::north-american-rail-network-lines/about) 
+
+
+
+
+
+### Project Sponsor
+Tim Bendal at Bank of America
+
+Our goal is to create a model to predict the probability of future climate events occurring in a certain region of the United States with the help of past climate data from the National Oceanic and Atmospheric Administration (NOAA). Once the model is complete we will map rail network lines within these affected regions with data from the U.S. Department of Transportation(US DOT) 
+
+
+
+Below we can see a brief overview of the data.
+
+Row
+-------------------------
+
+### Overview
+
+
+```{r} 
+knitr::include_graphics("usrail.JPG")
+#"C:\Users\abdul\Downloads\intropic.JPG"
+```
+
+
+
+Row
+----------------------------------
+
+
+
+
+
+### Weather Data {.col-6}
+
+Our dataset for the weather component consists of 72 years worth of data from the National Oceanic and Atmospheric Administration (NOAA). To make this dataset more applicable to our project, we chose to remove a subset of the weather events.
+
+
+
+
+
+
+
+
+
+```{r}
+# Transcribe the content of the images into vectors
+locations <- c("Hawaii", "Alaska", "Guam", "Puerto Rico",
+               "Gulf of Mexico", "Atlantic North", "Atlantic South",
+               "Hawaii waters", "E Pacific", "Virgin Islands",
+               "American Samoa", "Lake Superior", "Lake St Clair",
+               "Lake Ontario", "Lake Erie", "Lake Michigan", "Lake Huron")
+
+events <- c("Astronomical Low Tide", "Coastal Flood", "Dense Smoke",
+            "Drought", "Dust Devil", "Dust Storm", "Freezing Fog",
+            "Funnel Cloud", "Heat", "High Surf", "Lake-Effect Snow",
+            "Lakeshore Flood", "Marine Hail", "Marine High Wind",
+            "Marine Strong Wind", "Marine Thunderstorm Wind",
+            "Rip Current", "Waterspout", "Seiche", "Sleet",
+            "Sneakerwave", "Tsunami", "Tropical Depression",
+            "Tropical Storm", "Volcanic Ashfall")
+
+# Make both vectors the same length
+max_length <- max(length(locations), length(events))
+locations <- c(locations, rep("", max_length - length(locations)))
+events <- c(events, rep("", max_length - length(events)))
+
+# Combine into a data frame
+removed_data <- data.frame(Location = locations, Event = events)
+
+# Use kable to create a table
+kable(removed_data, caption = "Combined List of Removed Locations and Weather Events")
+
+```
+
+
+
+```{r removed-weather-events, fig.cap="List of removed weather events", echo=FALSE}
+#knitr::include_graphics("removedevents.png")
+```
+
+ 
+```{r}
+#knitr::include_graphics("removedevents.png")
+```
+  
+
+
+
+
+### Rail Data  {.col-6}
+
+Content related to Rail Data goes here .....
+
+
+
+
+
+
+
+
+
+
+Data Dictionary
+=======================================================================
+
+
+
+
+Column{data-witdh = 650}
+--------------------------------
+
+
+### Important Variables
+
+- **BEGIN_YEARMONTH**: The Vehicle Identification Number's first 10 characters, uniquely identifying the vehicle's make, model, and year.
+
+- **BEGIN_DAY**: The county in which the vehicle is registered.
+
+- **END_YEARMONTH**: The state in which the vehicle is registered, with all vehicles in this dataset registered in WA (Washington).
+
+- **END_DAY**: The postal code of the vehicle's registered address.
+
+- **EVENT_ID**: The model of the vehicle as designated by the manufacturer.
+
+- **STATE**: The type of electric vehicle, such as Battery Electric Vehicle (BEV).
+
+- **STATE_FIPS**: Indicates whether the vehicle is eligible for Clean Alternative Fuel Vehicle benefits.
+
+- **YEAR**: The maximum distance the vehicle can travel on a single charge, in miles.
+
+- **MONTH_NAME**: The Manufacturer's Suggested Retail Price at the base model level, not including optional features or taxes.
+
+- **EVENT_TYPE**: The legislative district in which the vehicle is registered.
+
+- **DAMAGE_PROPERTY**: A unique identifier for the vehicle assigned by the Department of Licensing.
+
+- **BEGIN_LAT**: Geographic coordinates (longitude and latitude) indicating the vehicle's registered location.
+
+- **BEGIN_LON**: The electric utility provider for the vehicle's registered address.
+
+- **END_LAT**: The 2020 Census Tract code for the vehicle's registered location.
+
+- **END_LON**: The production year of the vehicle.
+
+- **TOTAL_DAMAGE**: The manufacturer or brand of the vehicle.
+
+
+Column{data-width=650}
+---------------------------------
+
+### Dataframe
+
+```{r}
+
+  library(rio)             # data import/export     
+  library(here)            # locate files
+      
+ 
+  library(shiny)           # interactive figures
+  library(plotly)           # interactive figures
+
+# import the linelist
+linelist <- import("clean_data.csv")
+kable(head(linelist))
+
+```
+
+
+
+Column{data-width=650}
+---------------------------------
+### Dataframe
+
+```{r}
+# import the linelist
+linelistRail <- import("North_American_Rail_Network_Lines.csv")
+kable(head(linelistRail))
+```
+
+
+
+# Intro {data-navmenu="Weather Data"}
+
+Column {.tabset}
+-------------------------------------
+
+### Phase 1
+
+We need to take the messy raw data and aggregate it both on a geography and on a time basis.  For the initial attempt in order to keep things simple, you might want to just look at high level aggregations such as State for geography and Month for time. We will want to make the geographic area smaller – ZIP code, hexbin, or some kind of Lat/Lng based grid. If you go to hexbin or grid, you will need to assign some kind of id to the grid or bin location and use that for the geography.
+ 
+We should sum up the count of events and the total damages. You will have to convert the damages from the raw data to numeric.
+ 
+
+
+[Complete.data](https://drive.google.com/drive/u/1/folders/1khboQxJ2KM7M5ieV3zTWZTCpEGWb8Fja)
+[Phase1](https://github.com/AbdullahRiz/Capstone/blob/main/extended_aggregate_data.csv)
+[Phase2](https://github.com/AbdullahRiz/Capstone/blob/main/phase_2onemonth_data.csv)
+[Phase3](https://github.com/AbdullahRiz/Capstone/blob/main/final_data.csv)
+
+### Phase 2  {.tabset .tabset-dropdown}
+Once we have the aggregated data set, we need to create the dependent variable: For the given geography and time period, does a weather event occur two years into the future. This will add a new column “y” to the table.
+
+Before creating your Y column, You first must create all possible combinations of geography and time. For any combinations that are not in the data, you should fill the events and damage with 0. This will be needed because there will be some combinations of geography and time that do not have an event and will not otherwise be in the data.
+
+
+Once this is done the dependent variable can be created. For each row, look for the appropriate time period (two years in this case) and set to “1” if there are any events, “0” if there are no events, and Null/NA if we don’t have two years of forward data.
+ 
+Two notes here:
+ 
+1.	We will throw out the NA/Null data before model building
+2.	It is possible (probable) that every y value will be “1” if we keep the geography at the state level. If so, we must go to a smaller geography.
+
+
+### Phase 3
+
+In order to build a model that has a chance of actually working, we will likely need to create some additional features in our data. A good start would be some rolling lookback variables like “number of events in the prior 3 time periods”, “total damage in the prior 3 time periods” and vary they time periods to capture short medium and long term.  So the final data set would look something like this:
+
+# Damage Analysis {data-navmenu="Weather Data"}
+
+testing 123 hello helllo 
+
+
+Column{data-width=350}
+---------------------------------
+```{r} 
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(plotly)
+library(scales)
+
+# Load the data
+data <- read_csv("phase_2onemonth_data.csv")
+
+# Prepare the data: sum the damage by state and filter for the top N
+N <- 20  # You can change this number based on how many states you want to display
+data_summarized <- data %>%
+  group_by(STATE) %>%
+  summarise(Total_Damage = sum(Damage, na.rm = TRUE)) %>%
+  top_n(N, Total_Damage) %>%
+  ungroup() %>%
+  arrange(desc(Total_Damage)) %>% # Ensure data is in descending order of damage
+  mutate(STATE = factor(STATE, levels = rev(STATE))) # Set the levels in descending order
+
+# Create the ggplot
+p <- ggplot(data_summarized, aes(x = STATE, y = Total_Damage, fill = I("skyblue"))) +
+  geom_bar(stat = "identity") +
+  coord_flip() +  # Flips the coordinates to make the bars horizontal
+  theme_minimal() +
+  labs(title = "Top 20 States by Total Damage", 
+       x = "Total Damage (Millions of Dollars)", 
+       y = "State") +
+  scale_y_continuous(labels = comma) 
+
+# Convert it to a plotly object
+ggplotly(p)
+
+
+```
+
+
+Column{data-width=650}
+---------------------------------
+
+### Normalized Data
+
+```{r}
+# Load required libraries
+library(plotly)
+library(dplyr)
+
+# Read the data
+data <- read.csv("Final_Normalized_Damage_Per_State.csv")
+
+# Filter out the row with DC
+data <- data %>% filter(State != "DISTRICT OF COLUMBIA")
+
+# Sort the data in descending order based on Normalized Damage
+data <- data %>% arrange(desc(Normalized.Damage))
+
+# Set the factor levels of State to the order in the data frame
+data$State <- factor(data$State, levels = data$State)
+
+# Create the plotly graph
+fig <- plot_ly(data, x = ~State, y = ~Normalized.Damage, type = 'bar', name = 'Damage',
+               marker = list(color = 'rgb(135,206,250)'))
+fig <- fig %>% layout(title = "Normalized Damage Per Square Mile by State",
+                      xaxis = list(title = "State"),
+                      yaxis = list(title = "Damage ($ Per Sq Mile)"))
+fig
+
+```
+
+
+# Top Five {data-navmenu="Weather Data"}
+
+```{r} 
+knitr::include_graphics("top 5 events.png")
+```
+
+
+
+Monthly Plots {data-navmenu="Weather Data" data-orientation=columns}
+=====================
+
+Columns {.tabset}
+----------------------------
+
+### Jan 
+
+
+
+   
+
+month of january is the first month of the year ld;
+
+klshaflvhjlwqhv
+
+nasfj;kvh
+
+'asnfjvha
+
+
+
+```{r}
+library(plotly)
+library(dplyr)
+library(readr)
+library(maps) # for state.abb and state.name
+
+# Read your data
+data <- read_csv("phase_2onemonth_data.csv")
+
+# Create the November dataframe 'nov' and filter for the month of November using the 'Date' column
+jan <- data %>%
+  mutate(Date = as.Date(Date, format = "%Y-%m-%d")) %>%
+  filter(month(Date) == 1) %>%
+  group_by(STATE) %>%
+  summarise(total = sum(Events), .groups = 'drop') %>%
+  mutate(state = toupper(STATE), # Ensure this is the name of the state column in your data
+         code = state.abb[match(state, toupper(state.name))]) # Match against upper case state names
+
+
+# Now, you can create your plotly map
+fig <- plot_geo(jan, 
+                locations = ~code, 
+                z = ~total, 
+                text = ~state,
+                colors = 'Reds', 
+                locationmode = 'USA-states') %>%
+  colorbar(title = "Total Events") %>%
+  layout(
+    title = 'Total Events in January',
+    geo = list(
+      scope = 'usa',
+      projection = list(type = 'albers usa'),
+      showlakes = TRUE,
+      lakecolor = toRGB('white')
+    )
+  )
+
+fig
+```   
+
+
+
+
+
+
+
+
+
+### Feb
+
+hello test 123
+```{r}
+feb <- data %>%
+  mutate(Date = as.Date(Date, format = "%Y-%m-%d")) %>%
+  filter(month(Date) == 2) %>%
+  group_by(STATE) %>%
+  summarise(total = sum(Events), .groups = 'drop') %>%
+  mutate(state = toupper(STATE), # Ensure this is the name of the state column in your data
+         code = state.abb[match(state, toupper(state.name))]) # Match against upper case state names
+
+
+# Now, you can create your plotly map
+fig <- plot_geo(feb, locations = ~code, z = ~total, text = ~state,
+                colors = 'Reds', locationmode = 'USA-states') %>%
+  colorbar(title = "Total Events") %>%
+  layout(
+    title = 'Total Events in February',
+    geo = list(
+      scope = 'usa',
+      projection = list(type = 'albers usa'),
+      showlakes = TRUE,
+      lakecolor = toRGB('white')
+    )
+  )
+
+fig
+
+
+
+
+```
+
+
+
+### Mar
+    
+```{r}
+mar <- data %>%
+  mutate(Date = as.Date(Date, format = "%Y-%m-%d")) %>%
+  filter(month(Date) == 3) %>%
+  group_by(STATE) %>%
+  summarise(total = sum(Events), .groups = 'drop') %>%
+  mutate(state = toupper(STATE), # Ensure this is the name of the state column in your data
+         code = state.abb[match(state, toupper(state.name))]) # Match against upper case state names
+
+
+# Now, you can create your plotly map
+fig <- plot_geo(mar, locations = ~code, z = ~total, text = ~state,
+                colors = 'Reds', locationmode = 'USA-states') %>%
+  colorbar(title = "Total Events") %>%
+  layout(
+    title = 'Total Events in March',
+    geo = list(
+      scope = 'usa',
+      projection = list(type = 'albers usa'),
+      showlakes = TRUE,
+      lakecolor = toRGB('white')
+    )
+  )
+
+fig
+```
+
+
+
+
+
+
+### Apr
+```{r}
+apr <- data %>%
+  mutate(Date = as.Date(Date, format = "%Y-%m-%d")) %>%
+  filter(month(Date) == 4) %>%
+  group_by(STATE) %>%
+  summarise(total = sum(Events), .groups = 'drop') %>%
+  mutate(state = toupper(STATE), # Ensure this is the name of the state column in your data
+         code = state.abb[match(state, toupper(state.name))]) # Match against upper case state names
+
+
+# Now, you can create your plotly map
+fig <- plot_geo(apr, locations = ~code, z = ~total, text = ~state,
+                colors = 'Reds', locationmode = 'USA-states') %>%
+  colorbar(title = "Total Events") %>%
+  layout(
+    title = 'Total Events in April',
+    geo = list(
+      scope = 'usa',
+      projection = list(type = 'albers usa'),
+      showlakes = TRUE,
+      lakecolor = toRGB('white')
+    )
+  )
+
+fig
+
+```
+
+
+
+### May
+```{r}
+may <- data %>%
+  mutate(Date = as.Date(Date, format = "%Y-%m-%d")) %>%
+  filter(month(Date) == 5) %>%
+  group_by(STATE) %>%
+  summarise(total = sum(Events), .groups = 'drop') %>%
+  mutate(state = toupper(STATE), # Ensure this is the name of the state column in your data
+         code = state.abb[match(state, toupper(state.name))]) # Match against upper case state names
+
+
+# Now, you can create your plotly map
+fig <- plot_geo(may, locations = ~code, z = ~total, text = ~state,
+                colors = 'Reds', locationmode = 'USA-states') %>%
+  colorbar(title = "Total Events") %>%
+  layout(
+    title = 'Total Events in May',
+    geo = list(
+      scope = 'usa',
+      projection = list(type = 'albers usa'),
+      showlakes = TRUE,
+      lakecolor = toRGB('white')
+    )
+  )
+
+fig
+```
+
+
+### Jun
+```{r}
+june <- data %>%
+  mutate(Date = as.Date(Date, format = "%Y-%m-%d")) %>%
+  filter(month(Date) == 6) %>%
+  group_by(STATE) %>%
+  summarise(total = sum(Events), .groups = 'drop') %>%
+  mutate(state = toupper(STATE), # Ensure this is the name of the state column in your data
+         code = state.abb[match(state, toupper(state.name))]) # Match against upper case state names
+
+
+# Now, you can create your plotly map
+fig <- plot_geo(june, locations = ~code, z = ~total, text = ~state,
+                colors = 'Reds', locationmode = 'USA-states') %>%
+  colorbar(title = "Total Events") %>%
+  layout(
+    title = 'Total Events in June',
+    geo = list(
+      scope = 'usa',
+      projection = list(type = 'albers usa'),
+      showlakes = TRUE,
+      lakecolor = toRGB('white')
+    )
+  )
+
+fig
+```
+
+
+### Jul
+```{r}
+july <- data %>%
+  mutate(Date = as.Date(Date, format = "%Y-%m-%d")) %>%
+  filter(month(Date) == 7) %>%
+  group_by(STATE) %>%
+  summarise(total = sum(Events), .groups = 'drop') %>%
+  mutate(state = toupper(STATE), # Ensure this is the name of the state column in your data
+         code = state.abb[match(state, toupper(state.name))]) # Match against upper case state names
+
+
+# Now, you can create your plotly map
+fig <- plot_geo(july, locations = ~code, z = ~total, text = ~state,
+                colors = 'Reds', locationmode = 'USA-states') %>%
+  colorbar(title = "Total Events") %>%
+  layout(
+    title = 'Total Events in July',
+    geo = list(
+      scope = 'usa',
+      projection = list(type = 'albers usa'),
+      showlakes = TRUE,
+      lakecolor = toRGB('white')
+    )
+  )
+
+fig
+```
+
+
+
+### Aug
+```{r}
+aug <- data %>%
+  mutate(Date = as.Date(Date, format = "%Y-%m-%d")) %>%
+  filter(month(Date) == 8) %>%
+  group_by(STATE) %>%
+  summarise(total = sum(Events), .groups = 'drop') %>%
+  mutate(state = toupper(STATE), # Ensure this is the name of the state column in your data
+         code = state.abb[match(state, toupper(state.name))]) # Match against upper case state names
+
+
+# Now, you can create your plotly map
+fig <- plot_geo(aug, locations = ~code, z = ~total, text = ~state,
+                colors = 'Reds', locationmode = 'USA-states') %>%
+  colorbar(title = "Total Events") %>%
+  layout(
+    title = 'Total Events in August',
+    geo = list(
+      scope = 'usa',
+      projection = list(type = 'albers usa'),
+      showlakes = TRUE,
+      lakecolor = toRGB('white')
+    )
+  )
+
+fig
+```
+
+
+
+
+### Sep
+```{r}
+sep <- data %>%
+  mutate(Date = as.Date(Date, format = "%Y-%m-%d")) %>%
+  filter(month(Date) == 9) %>%
+  group_by(STATE) %>%
+  summarise(total = sum(Events), .groups = 'drop') %>%
+  mutate(state = toupper(STATE), # Ensure this is the name of the state column in your data
+         code = state.abb[match(state, toupper(state.name))]) # Match against upper case state names
+
+
+# Now, you can create your plotly map
+fig <- plot_geo(sep, locations = ~code, z = ~total, text = ~state,
+                colors = 'Reds', locationmode = 'USA-states') %>%
+  colorbar(title = "Total Events") %>%
+  layout(
+    title = 'Total Events in Septemeber',
+    geo = list(
+      scope = 'usa',
+      projection = list(type = 'albers usa'),
+      showlakes = TRUE,
+      lakecolor = toRGB('white')
+    )
+  )
+
+fig
+```
+
+
+
+### Oct
+```{r}
+oct <- data %>%
+  mutate(Date = as.Date(Date, format = "%Y-%m-%d")) %>%
+  filter(month(Date) == 10) %>%
+  group_by(STATE) %>%
+  summarise(total = sum(Events), .groups = 'drop') %>%
+  mutate(state = toupper(STATE), # Ensure this is the name of the state column in your data
+         code = state.abb[match(state, toupper(state.name))]) # Match against upper case state names
+
+
+# Now, you can create your plotly map
+fig <- plot_geo(oct, locations = ~code, z = ~total, text = ~state,
+                colors = 'Reds', locationmode = 'USA-states') %>%
+  colorbar(title = "Total Events") %>%
+  layout(
+    title = 'Total Events in October',
+    geo = list(
+      scope = 'usa',
+      projection = list(type = 'albers usa'),
+      showlakes = TRUE,
+      lakecolor = toRGB('white')
+    )
+  )
+
+fig
+```
+
+
+
+
+
+
+### Nov
+```{r}
+library(plotly)
+library(dplyr)
+library(readr)
+library(maps) # for state.abb and state.name
+
+# Read your data
+data <- read_csv("phase_2onemonth_data.csv")
+
+# Create the November dataframe 'nov' and filter for the month of November using the 'Date' column
+nov <- data %>%
+  mutate(Date = as.Date(Date, format = "%Y-%m-%d")) %>%
+  filter(month(Date) == 11) %>%
+  group_by(STATE) %>%
+  summarise(total = sum(Events), .groups = 'drop') %>%
+  mutate(state = toupper(STATE), # Ensure this is the name of the state column in your data
+         code = state.abb[match(state, toupper(state.name))]) # Match against upper case state names
+
+
+# Now, you can create your plotly map
+fig <- plot_geo(nov, locations = ~code, z = ~total, text = ~state,
+                colors = 'Reds', locationmode = 'USA-states') %>%
+  colorbar(title = "Total Events") %>%
+  layout(
+    title = 'Total Events in November',
+    geo = list(
+      scope = 'usa',
+      projection = list(type = 'albers usa'),
+      showlakes = TRUE,
+      lakecolor = toRGB('white')
+    )
+  )
+
+fig
+
+```
+
+
+
+### Dec
+
+hello test 123
+```{r}
+library(plotly)
+library(dplyr)
+library(readr)
+library(maps) # for state.abb and state.name
+
+# Read your data
+data <- read_csv("phase_2onemonth_data.csv")
+
+
+# input -> data, month, isStandarized
+# TODO: subset on month, and plot 
+# output -> plot
+
+
+
+# Create the November dataframe 'nov' and filter for the month of November using the 'Date' column
+dec <- data %>%
+  mutate(Date = as.Date(Date, format = "%Y-%m-%d")) %>%
+  filter(month(Date) == 12) %>%
+  group_by(STATE) %>%
+  summarise(total = sum(Events), .groups = 'drop') %>%
+  mutate(state = toupper(STATE), # Ensure this is the name of the state column in your data
+         code = state.abb[match(state, toupper(state.name))]) # Match against upper case state names
+
+
+# Now, you can create your plotly map
+fig <- plot_geo(dec, locations = ~code, z = ~total, text = ~state,
+                colors = 'Reds', locationmode = 'USA-states') %>%
+  colorbar(title = "Total Events") %>%
+  layout(
+    title = 'Total Events in December',
+    geo = list(
+      scope = 'usa',
+      projection = list(type = 'albers usa'),
+      showlakes = TRUE,
+      lakecolor = toRGB('white')
+    )
+  )
+
+fig
+```
+
+
+
+
+
+
+
+Column {.tabset}
+-------------------------------
+### Jan
+
+```{r}
+library(plotly)
+library(dplyr)
+
+# Read the normalized events data
+events_data <- read.csv("Final_Normalized_Events_Data_No_DC.csv")
+events_data$Month <- as.factor(events_data$Month)
+
+# Choose the month to plot and filter
+selected_month <- 1
+month_data <- events_data %>%
+  filter(Month == selected_month) %>%
+  group_by(State) %>%
+  summarise(Accurate_Events_Per_Square_Mile = sum(Accurate_Events_Per_Square_Mile)) %>%
+  mutate(
+    state = toupper(State),
+    code = state.abb[match(State, toupper(state.name))]) # Ensure state.abb and state.name are defined
+
+# Define a custom color scale similar to the one in the provided image
+# You'll need to replace these colors with the ones from your image
+custom_color_scale <- c(
+  '0' = '#fee5d9',   # light shade of color
+  '0.5' = '#fcae91', # medium shade of color
+  '1' = '#fb6a4a'    # dark shade of color
+)
+
+# Create and print the plot with the custom color scale
+fig <- plot_geo(month_data) %>%
+  add_trace(
+    z = ~Accurate_Events_Per_Square_Mile, 
+    locations = ~code, 
+    locationmode = 'USA-states',
+    colorscale = custom_color_scale
+  ) %>%
+  colorbar(title = "Accurate Events per Sq Mile") %>%
+  layout(
+    title = paste('Normalized Events for', month.abb[as.numeric(selected_month)], 'in the USA'),
+    geo = list(
+      scope = 'usa',
+      projection = list(type = 'albers usa'),
+      showlakes = TRUE,
+      lakecolor = 'rgb(255,255,255)'
+    )
+  )
+
+# Print the plot
+fig
+```
+
+
+
+### Feb
+
+```{r}
+library(plotly)
+library(dplyr)
+
+# Read the normalized events data
+events_data <- read.csv("Final_Normalized_Events_Data_No_DC.csv")
+events_data$Month <- as.factor(events_data$Month)
+
+# Choose the month to plot and filter
+selected_month <- 2
+month_data <- events_data %>%
+  filter(Month == selected_month) %>%
+  group_by(State) %>%
+  summarise(Accurate_Events_Per_Square_Mile = sum(Accurate_Events_Per_Square_Mile)) %>%
+  mutate(
+    state = toupper(State),
+    code = state.abb[match(State, toupper(state.name))]) # Ensure state.abb and state.name are defined
+
+# Define a custom color scale similar to the one in the provided image
+# You'll need to replace these colors with the ones from your image
+custom_color_scale <- c(
+  '0' = '#fee5d9',   # light shade of color
+  '0.5' = '#fcae91', # medium shade of color
+  '1' = '#fb6a4a'    # dark shade of color
+)
+
+# Create and print the plot with the custom color scale
+fig <- plot_geo(month_data) %>%
+  add_trace(
+    z = ~Accurate_Events_Per_Square_Mile, 
+    locations = ~code, 
+    locationmode = 'USA-states',
+    colorscale = custom_color_scale
+  ) %>%
+  colorbar(title = "Accurate Events per Sq Mile") %>%
+  layout(
+    title = paste('Normalized Events for', month.abb[as.numeric(selected_month)], 'in the USA'),
+    geo = list(
+      scope = 'usa',
+      projection = list(type = 'albers usa'),
+      showlakes = TRUE,
+      lakecolor = 'rgb(255,255,255)'
+    )
+  )
+
+# Print the plot
+fig
+```
+
+
+
+
+### Mar
+```{r}
+library(plotly)
+library(dplyr)
+
+# Read the normalized events data
+events_data <- read.csv("Final_Normalized_Events_Data_No_DC.csv")
+events_data$Month <- as.factor(events_data$Month)
+
+# Choose the month to plot and filter
+selected_month <- 3
+month_data <- events_data %>%
+  filter(Month == selected_month) %>%
+  group_by(State) %>%
+  summarise(Accurate_Events_Per_Square_Mile = sum(Accurate_Events_Per_Square_Mile)) %>%
+  mutate(
+    state = toupper(State),
+    code = state.abb[match(State, toupper(state.name))]) # Ensure state.abb and state.name are defined
+
+# Define a custom color scale similar to the one in the provided image
+# You'll need to replace these colors with the ones from your image
+custom_color_scale <- c(
+  '0' = '#fee5d9',   # light shade of color
+  '0.5' = '#fcae91', # medium shade of color
+  '1' = '#fb6a4a'    # dark shade of color
+)
+
+# Create and print the plot with the custom color scale
+fig <- plot_geo(month_data) %>%
+  add_trace(
+    z = ~Accurate_Events_Per_Square_Mile, 
+    locations = ~code, 
+    locationmode = 'USA-states',
+    colorscale = custom_color_scale
+  ) %>%
+  colorbar(title = "Accurate Events per Sq Mile") %>%
+  layout(
+    title = paste('Normalized Events for', month.abb[as.numeric(selected_month)], 'in the USA'),
+    geo = list(
+      scope = 'usa',
+      projection = list(type = 'albers usa'),
+      showlakes = TRUE,
+      lakecolor = 'rgb(255,255,255)'
+    )
+  )
+
+# Print the plot
+fig
+
+
+```
+
+
+### Apr
+```{r}
+library(plotly)
+library(dplyr)
+
+# Read the normalized events data
+events_data <- read.csv("Final_Normalized_Events_Data_No_DC.csv")
+events_data$Month <- as.factor(events_data$Month)
+
+# Choose the month to plot and filter
+selected_month <- 4
+month_data <- events_data %>%
+  filter(Month == selected_month) %>%
+  group_by(State) %>%
+  summarise(Accurate_Events_Per_Square_Mile = sum(Accurate_Events_Per_Square_Mile)) %>%
+  mutate(
+    state = toupper(State),
+    code = state.abb[match(State, toupper(state.name))]) # Ensure state.abb and state.name are defined
+
+# Define a custom color scale similar to the one in the provided image
+# You'll need to replace these colors with the ones from your image
+custom_color_scale <- c(
+  '0' = '#fee5d9',   # light shade of color
+  '0.5' = '#fcae91', # medium shade of color
+  '1' = '#fb6a4a'    # dark shade of color
+)
+
+# Create and print the plot with the custom color scale
+fig <- plot_geo(month_data) %>%
+  add_trace(
+    z = ~Accurate_Events_Per_Square_Mile, 
+    locations = ~code, 
+    locationmode = 'USA-states',
+    colorscale = custom_color_scale
+  ) %>%
+  colorbar(title = "Accurate Events per Sq Mile") %>%
+  layout(
+    title = paste('Normalized Events for', month.abb[as.numeric(selected_month)], 'in the USA'),
+    geo = list(
+      scope = 'usa',
+      projection = list(type = 'albers usa'),
+      showlakes = TRUE,
+      lakecolor = 'rgb(255,255,255)'
+    )
+  )
+
+# Print the plot
+fig
+```
+
+
+
+### May
+```{r}
+library(plotly)
+library(dplyr)
+
+# Read the normalized events data
+events_data <- read.csv("Final_Normalized_Events_Data_No_DC.csv")
+events_data$Month <- as.factor(events_data$Month)
+
+# Choose the month to plot and filter
+selected_month <- 5
+month_data <- events_data %>%
+  filter(Month == selected_month) %>%
+  group_by(State) %>%
+  summarise(Accurate_Events_Per_Square_Mile = sum(Accurate_Events_Per_Square_Mile)) %>%
+  mutate(
+    state = toupper(State),
+    code = state.abb[match(State, toupper(state.name))]) # Ensure state.abb and state.name are defined
+
+# Define a custom color scale similar to the one in the provided image
+# You'll need to replace these colors with the ones from your image
+custom_color_scale <- c(
+  '0' = '#fee5d9',   # light shade of color
+  '0.5' = '#fcae91', # medium shade of color
+  '1' = '#fb6a4a'    # dark shade of color
+)
+
+# Create and print the plot with the custom color scale
+fig <- plot_geo(month_data) %>%
+  add_trace(
+    z = ~Accurate_Events_Per_Square_Mile, 
+    locations = ~code, 
+    locationmode = 'USA-states',
+    colorscale = custom_color_scale
+  ) %>%
+  colorbar(title = "Accurate Events per Sq Mile") %>%
+  layout(
+    title = paste('Normalized Events for', month.abb[as.numeric(selected_month)], 'in the USA'),
+    geo = list(
+      scope = 'usa',
+      projection = list(type = 'albers usa'),
+      showlakes = TRUE,
+      lakecolor = 'rgb(255,255,255)'
+    )
+  )
+
+# Print the plot
+fig
+```
+
+
+
+### Jun
+```{r}
+library(plotly)
+library(dplyr)
+
+# Read the normalized events data
+events_data <- read.csv("Final_Normalized_Events_Data_No_DC.csv")
+events_data$Month <- as.factor(events_data$Month)
+
+# Choose the month to plot and filter
+selected_month <- 6
+month_data <- events_data %>%
+  filter(Month == selected_month) %>%
+  group_by(State) %>%
+  summarise(Accurate_Events_Per_Square_Mile = sum(Accurate_Events_Per_Square_Mile)) %>%
+  mutate(
+    state = toupper(State),
+    code = state.abb[match(State, toupper(state.name))]) # Ensure state.abb and state.name are defined
+
+# Define a custom color scale similar to the one in the provided image
+# You'll need to replace these colors with the ones from your image
+custom_color_scale <- c(
+  '0' = '#fee5d9',   # light shade of color
+  '0.5' = '#fcae91', # medium shade of color
+  '1' = '#fb6a4a'    # dark shade of color
+)
+
+# Create and print the plot with the custom color scale
+fig <- plot_geo(month_data) %>%
+  add_trace(
+    z = ~Accurate_Events_Per_Square_Mile, 
+    locations = ~code, 
+    locationmode = 'USA-states',
+    colorscale = custom_color_scale
+  ) %>%
+  colorbar(title = "Accurate Events per Sq Mile") %>%
+  layout(
+    title = paste('Normalized Events for', month.abb[as.numeric(selected_month)], 'in the USA'),
+    geo = list(
+      scope = 'usa',
+      projection = list(type = 'albers usa'),
+      showlakes = TRUE,
+      lakecolor = 'rgb(255,255,255)'
+    )
+  )
+
+# Print the plot
+fig
+```
+
+
+
+### Jul
+```{r}
+library(plotly)
+library(dplyr)
+
+# Read the normalized events data
+events_data <- read.csv("Final_Normalized_Events_Data_No_DC.csv")
+events_data$Month <- as.factor(events_data$Month)
+
+# Choose the month to plot and filter
+selected_month <- 7
+month_data <- events_data %>%
+  filter(Month == selected_month) %>%
+  group_by(State) %>%
+  summarise(Accurate_Events_Per_Square_Mile = sum(Accurate_Events_Per_Square_Mile)) %>%
+  mutate(
+    state = toupper(State),
+    code = state.abb[match(State, toupper(state.name))]) # Ensure state.abb and state.name are defined
+
+# Define a custom color scale similar to the one in the provided image
+# You'll need to replace these colors with the ones from your image
+custom_color_scale <- c(
+  '0' = '#fee5d9',   # light shade of color
+  '0.5' = '#fcae91', # medium shade of color
+  '1' = '#fb6a4a'    # dark shade of color
+)
+
+# Create and print the plot with the custom color scale
+fig <- plot_geo(month_data) %>%
+  add_trace(
+    z = ~Accurate_Events_Per_Square_Mile, 
+    locations = ~code, 
+    locationmode = 'USA-states',
+    colorscale = custom_color_scale
+  ) %>%
+  colorbar(title = "Accurate Events per Sq Mile") %>%
+  layout(
+    title = paste('Normalized Events for', month.abb[as.numeric(selected_month)], 'in the USA'),
+    geo = list(
+      scope = 'usa',
+      projection = list(type = 'albers usa'),
+      showlakes = TRUE,
+      lakecolor = 'rgb(255,255,255)'
+    )
+  )
+
+# Print the plot
+fig
+```
+
+
+### Aug
+```{r}
+library(plotly)
+library(dplyr)
+
+# Read the normalized events data
+events_data <- read.csv("Final_Normalized_Events_Data_No_DC.csv")
+events_data$Month <- as.factor(events_data$Month)
+
+# Choose the month to plot and filter
+selected_month <- 8
+month_data <- events_data %>%
+  filter(Month == selected_month) %>%
+  group_by(State) %>%
+  summarise(Accurate_Events_Per_Square_Mile = sum(Accurate_Events_Per_Square_Mile)) %>%
+  mutate(
+    state = toupper(State),
+    code = state.abb[match(State, toupper(state.name))]) # Ensure state.abb and state.name are defined
+
+# Define a custom color scale similar to the one in the provided image
+# You'll need to replace these colors with the ones from your image
+custom_color_scale <- c(
+  '0' = '#fee5d9',   # light shade of color
+  '0.5' = '#fcae91', # medium shade of color
+  '1' = '#fb6a4a'    # dark shade of color
+)
+
+# Create and print the plot with the custom color scale
+fig <- plot_geo(month_data) %>%
+  add_trace(
+    z = ~Accurate_Events_Per_Square_Mile, 
+    locations = ~code, 
+    locationmode = 'USA-states',
+    colorscale = custom_color_scale
+  ) %>%
+  colorbar(title = "Accurate Events per Sq Mile") %>%
+  layout(
+    title = paste('Normalized Events for', month.abb[as.numeric(selected_month)], 'in the USA'),
+    geo = list(
+      scope = 'usa',
+      projection = list(type = 'albers usa'),
+      showlakes = TRUE,
+      lakecolor = 'rgb(255,255,255)'
+    )
+  )
+
+# Print the plot
+fig
+```
+
+
+### Sep
+```{r}
+library(plotly)
+library(dplyr)
+
+# Read the normalized events data
+events_data <- read.csv("Final_Normalized_Events_Data_No_DC.csv")
+events_data$Month <- as.factor(events_data$Month)
+
+# Choose the month to plot and filter
+selected_month <- 9
+month_data <- events_data %>%
+  filter(Month == selected_month) %>%
+  group_by(State) %>%
+  summarise(Accurate_Events_Per_Square_Mile = sum(Accurate_Events_Per_Square_Mile)) %>%
+  mutate(
+    state = toupper(State),
+    code = state.abb[match(State, toupper(state.name))]) # Ensure state.abb and state.name are defined
+
+# Define a custom color scale similar to the one in the provided image
+# You'll need to replace these colors with the ones from your image
+custom_color_scale <- c(
+  '0' = '#fee5d9',   # light shade of color
+  '0.5' = '#fcae91', # medium shade of color
+  '1' = '#fb6a4a'    # dark shade of color
+)
+
+# Create and print the plot with the custom color scale
+fig <- plot_geo(month_data) %>%
+  add_trace(
+    z = ~Accurate_Events_Per_Square_Mile, 
+    locations = ~code, 
+    locationmode = 'USA-states',
+    colorscale = custom_color_scale
+  ) %>%
+  colorbar(title = "Accurate Events per Sq Mile") %>%
+  layout(
+    title = paste('Normalized Events for', month.abb[as.numeric(selected_month)], 'in the USA'),
+    geo = list(
+      scope = 'usa',
+      projection = list(type = 'albers usa'),
+      showlakes = TRUE,
+      lakecolor = 'rgb(255,255,255)'
+    )
+  )
+
+# Print the plot
+fig
+```
+
+### Oct
+```{r}
+library(plotly)
+library(dplyr)
+
+# Read the normalized events data
+events_data <- read.csv("Final_Normalized_Events_Data_No_DC.csv")
+events_data$Month <- as.factor(events_data$Month)
+
+# Choose the month to plot and filter
+selected_month <- 10
+month_data <- events_data %>%
+  filter(Month == selected_month) %>%
+  group_by(State) %>%
+  summarise(Accurate_Events_Per_Square_Mile = sum(Accurate_Events_Per_Square_Mile)) %>%
+  mutate(
+    state = toupper(State),
+    code = state.abb[match(State, toupper(state.name))]) # Ensure state.abb and state.name are defined
+
+# Define a custom color scale similar to the one in the provided image
+# You'll need to replace these colors with the ones from your image
+custom_color_scale <- c(
+  '0' = '#fee5d9',   # light shade of color
+  '0.5' = '#fcae91', # medium shade of color
+  '1' = '#fb6a4a'    # dark shade of color
+)
+
+# Create and print the plot with the custom color scale
+fig <- plot_geo(month_data) %>%
+  add_trace(
+    z = ~Accurate_Events_Per_Square_Mile, 
+    locations = ~code, 
+    locationmode = 'USA-states',
+    colorscale = custom_color_scale
+  ) %>%
+  colorbar(title = "Accurate Events per Sq Mile") %>%
+  layout(
+    title = paste('Normalized Events for', month.abb[as.numeric(selected_month)], 'in the USA'),
+    geo = list(
+      scope = 'usa',
+      projection = list(type = 'albers usa'),
+      showlakes = TRUE,
+      lakecolor = 'rgb(255,255,255)'
+    )
+  )
+
+# Print the plot
+fig
+```
+
+### Nov
+```{r}
+library(plotly)
+library(dplyr)
+
+# Read the normalized events data
+events_data <- read.csv("Final_Normalized_Events_Data_No_DC.csv")
+events_data$Month <- as.factor(events_data$Month)
+
+# Choose the month to plot and filter
+selected_month <- 11
+month_data <- events_data %>%
+  filter(Month == selected_month) %>%
+  group_by(State) %>%
+  summarise(Accurate_Events_Per_Square_Mile = sum(Accurate_Events_Per_Square_Mile)) %>%
+  mutate(
+    state = toupper(State),
+    code = state.abb[match(State, toupper(state.name))]) # Ensure state.abb and state.name are defined
+
+# Define a custom color scale similar to the one in the provided image
+# You'll need to replace these colors with the ones from your image
+custom_color_scale <- c(
+  '0' = '#fee5d9',   # light shade of color
+  '0.5' = '#fcae91', # medium shade of color
+  '1' = '#fb6a4a'    # dark shade of color
+)
+
+# Create and print the plot with the custom color scale
+fig <- plot_geo(month_data) %>%
+  add_trace(
+    z = ~Accurate_Events_Per_Square_Mile, 
+    locations = ~code, 
+    locationmode = 'USA-states',
+    colorscale = custom_color_scale
+  ) %>%
+  colorbar(title = "Accurate Events per Sq Mile") %>%
+  layout(
+    title = paste('Normalized Events for', month.abb[as.numeric(selected_month)], 'in the USA'),
+    geo = list(
+      scope = 'usa',
+      projection = list(type = 'albers usa'),
+      showlakes = TRUE,
+      lakecolor = 'rgb(255,255,255)'
+    )
+  )
+
+# Print the plot
+fig
+```
+
+
+### Dec
+.dnvklasvjkslavhasklvnasknva
+```{r}
+library(plotly)
+library(dplyr)
+
+# Read the normalized events data
+events_data <- read.csv("Final_Normalized_Events_Data_No_DC.csv")
+events_data$Month <- as.factor(events_data$Month)
+
+# Choose the month to plot and filter
+selected_month <- 12
+month_data <- events_data %>%
+  filter(Month == selected_month) %>%
+  group_by(State) %>%
+  summarise(Accurate_Events_Per_Square_Mile = sum(Accurate_Events_Per_Square_Mile)) %>%
+  mutate(
+    state = toupper(State),
+    code = state.abb[match(State, toupper(state.name))]) # Ensure state.abb and state.name are defined
+
+# Define a custom color scale similar to the one in the provided image
+# You'll need to replace these colors with the ones from your image
+custom_color_scale <- c(
+  '0' = '#fee5d9',   # light shade of color
+  '0.5' = '#fcae91', # medium shade of color
+  '1' = '#fb6a4a'    # dark shade of color
+)
+
+# Create and print the plot with the custom color scale
+fig <- plot_geo(month_data) %>%
+  add_trace(
+    z = ~Accurate_Events_Per_Square_Mile, 
+    locations = ~code, 
+    locationmode = 'USA-states',
+    colorscale = custom_color_scale
+  ) %>%
+  colorbar(title = "Accurate Events per Sq Mile") %>%
+  layout(
+    title = paste('Normalized Events for', month.abb[as.numeric(selected_month)], 'in the USA'),
+    geo = list(
+      scope = 'usa',
+      projection = list(type = 'albers usa'),
+      showlakes = TRUE,
+      lakecolor = 'rgb(255,255,255)'
+    )
+  )
+
+# Print the plot
+fig
+```
+
+
+
+# Betweenness {data-navmenu="Rail Data"}
+
+Column {.tabset}
+-------------------------------------
+
+### US Map
+
+```{r} 
+knitr::include_graphics("usmapnode.JPG")
+#"C:\Users\abdul\Downloads\intropic.JPG"
+```
+
+### Table {.col-6}
+
+```{r}
+# Transcribe the content of the images into vectors
+locations <- c("Hawaii", "Alaska", "Guam", "Puerto Rico",
+               "Gulf of Mexico", "Atlantic North", "Atlantic South",
+               "Hawaii waters", "E Pacific", "Virgin Islands",
+               "American Samoa", "Lake Superior", "Lake St Clair",
+               "Lake Ontario", "Lake Erie", "Lake Michigan", "Lake Huron")
+
+events <- c("Astronomical Low Tide", "Coastal Flood", "Dense Smoke",
+            "Drought", "Dust Devil", "Dust Storm", "Freezing Fog",
+            "Funnel Cloud", "Heat", "High Surf", "Lake-Effect Snow",
+            "Lakeshore Flood", "Marine Hail", "Marine High Wind",
+            "Marine Strong Wind", "Marine Thunderstorm Wind",
+            "Rip Current", "Waterspout", "Seiche", "Sleet",
+            "Sneakerwave", "Tsunami", "Tropical Depression",
+            "Tropical Storm", "Volcanic Ashfall")
+
+# Make both vectors the same length
+max_length <- max(length(locations), length(events))
+locations <- c(locations, rep("", max_length - length(locations)))
+events <- c(events, rep("", max_length - length(events)))
+
+# Combine into a data frame
+removed_data <- data.frame(Location = locations, Event = events)
+
+# Use kable to create a table
+kable(removed_data, caption = "Combined List of Removed Locations and Weather Events")
+
+```
+
+
+
+### Top plot
+
+```{r}
+knitr::include_graphics("topplot.JPG")
+knitr::include_graphics("topplotfive.JPG")
+```
+
+
+# Density {data-navmenu="Rail Data"}
+
+Column {.tabset}
+-------------------------------------
+
+### Top Plot
+
+```{r}
+knitr::include_graphics("totalrailway.JPG")
+```
+
+
+### Top 5 Plot
+
+```{r}
+knitr::include_graphics("normalized.JPG")
+```
+
+
+
+# Analysis {data-navmenu="Rail Data"}
+
+
+
+Recommendations/Suggestions
+=======================================================================
+
+Column {.tabset}
+-------------------------------------
+
+
+### Suggestions
+
+### Future Work
+
