@@ -34,36 +34,35 @@ library(dplyr)
 library(DT)
 library(rpivotTable)
 library(biclust)
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(plotly)
+library(scales)
+library(readr)
+library(maps)
 ```
 
 
-Introduction
+Overview
 =======================================================================
+In collaboration with Tim Bendel from Bank of America, the Trainsformers team is focusing on strengthening U.S. railroads against climate-related disruptions. This project employs advanced data analytics and geospatial technologies to assess how rising temperatures and extreme weather can damage rail infrastructure and disrupt services. 
 
-The goal of this project is to identify geographical regions which, although not directly vulnerable to climate risk, have an implicit vulnerability to physical risks due to infrastructure related or other geographic vulnerabilities. This work will focus initially on the vulnerability of critical transport networks, specifically rail lines.
-
-
-
-
-Our goal is to create a model to predict the probability of future climate events occurring in a certain region of the United States with the help of past climate data from the National Oceanic and Atmospheric Administration[NOAA](https://www.ncei.noaa.gov/pub/data/swdi/stormevents/csvfiles/). Once the model is complete we will map rail network lines within these affected regions with data from the U.S. Department of Transportation [USDOT](https://geodata.bts.gov/datasets/usdot::north-american-rail-network-lines/about) 
+While climate catastrophes often damage regions directly in their path, their effects ripple far beyond through the interconnected webs of infrastructure. Understanding these secondary impacts is vital as they can often exceed the initial economic damages. By integrating comprehensive datasets from from the National Oceanic and Atmospheric Administration [NOAA](https://www.ncei.noaa.gov/pub/data/swdi/stormevents/csvfiles/) and data from the U.S. Department of Transportation [USDOT](https://geodata.bts.gov/datasets/usdot::north-american-rail-network-lines/about), we will identify and map these indirect risks to railway systems that play an integral role in the nation's economic engine.
 
 
 
 
-
-### Project Sponsor
-Tim Bendal at Bank of America
-
-Our goal is to create a model to predict the probability of future climate events occurring in a certain region of the United States with the help of past climate data from the National Oceanic and Atmospheric Administration (NOAA). Once the model is complete we will map rail network lines within these affected regions with data from the U.S. Department of Transportation(US DOT) 
+Our objective is to leverage data engineering and geospatial analytics to develop a predictive model that quantifies the vulnerability of U.S. rail networks to future climate-related disruptions. The insights gained will not only spotlight regions of indirect vulnerability but also guide infrastructural fortification efforts, ensuring that rail lines remain resilient in the face of climate uncertainty. With parallels to research published in the field, our project will navigate the complex landscape of environmental data, rail infrastructure, and economic implications.
 
 
+The map below displays an extensive visualization of all rail network lines across the continental United States. 
 
-Below we can see a brief overview of the data.
 
 Row
 -------------------------
 
-### Overview
+### Railway Network across the United States
 
 
 ```{r} 
@@ -73,16 +72,6 @@ knitr::include_graphics("usrail.JPG")
 
 
 
-Row
-----------------------------------
-
-
-
-
-
-### Weather Data {.col-6}
-
-Our dataset for the weather component consists of 72 years worth of data from the National Oceanic and Atmospheric Administration (NOAA). To make this dataset more applicable to our project, we chose to remove a subset of the weather events.
 
 
 
@@ -91,6 +80,159 @@ Our dataset for the weather component consists of 72 years worth of data from th
 
 
 
+
+
+
+
+
+
+Data Dictionary
+=======================================================================
+
+
+
+
+Column{data-witdh = 500}
+--------------------------------
+### Weather Data Important Variables
+
+- **BEGIN_YEARMONTH**: The year and month when the climate event began, formatted as a six-digit number (YYYYMM).
+
+- **BEGIN_DAY**: The day of the month when the climate event started, represented by a two-digit number.
+
+- **END_YEARMONTH**: The year and month when the climate event ended, formatted in the same manner
+
+- **END_DAY**: The day of the month on which the climate event concluded, following the same format
+
+- **BEGIN_DAY**: The day of the month when the climate event started, represented by a two-digit number.
+
+- **EVENT_TYPE**: The type of Climate Event being recorded.
+
+- **CZ_FIPS**: Specific State ID number 
+
+- **DAMAGE_PROPERTY**: The total amount of damage in dollars as a result of an event.
+
+- **BEGIN_LAT**: The specific Latitude where the event took place.
+
+- **BEGIN_LON**: The specific Longitude where the event took place.
+
+### Rail Data Important Variables
+
+- **Objectid**: Node id; unique id allocated per node
+
+- **Frfranode**: an ID for the segment (arc) from which the rail line starts
+
+- **Tofranode**: an identifier for the node where the rail network line ends
+
+- **stateab**: The state abbreviation
+
+- **county**:  The Country abbreviation
+
+- **division**: Section of the US (i.e Mid America)
+
+- **timezone**: an identifier of timezone
+
+- **shape_Length**: represents the length of each segment of the rail line
+
+- **miles**: The length of the segments in miles
+
+
+
+Column{data-width=500}
+---------------------------------
+
+### Weather Data
+
+```{r}
+
+  library(rio)             # data import/export     
+  library(here)            # locate files
+      
+ 
+  library(shiny)           # interactive figures
+  library(plotly)           # interactive figures
+
+# import the linelist
+linelist <- import("clean_data.csv")
+kable(head(linelist))
+
+```
+
+
+
+
+Column{data-width=650}
+---------------------------------
+### Rail Data
+
+```{r}
+# import the linelist
+linelistRail <- import("North_American_Rail_Network_Lines.csv")
+kable(head(linelistRail))
+```
+
+
+
+# Data Processing {data-navmenu="Weather Data"}
+
+Column {.tabset}
+-------------------------------------
+
+### Phase 1
+
+The first task when working on the three-phase probabilistic model was to transform the raw, unstructured 72-year climate event data into a format that is suitable for comprehensive analysis. To achieve this, we executed a two-part aggregation strategy that uses both location and time as parameters from the [Complete.data](https://github.com/AbdullahRiz/Capstone/blob/main/clean_data_2.zip). Geographic data was collected at a state level, which provided a broad perspective on the distribution of climate events. Simultaneously, temporal data was consolidated monthly, allowing us to differentiate patterns and trends over time.
+In parallel, we gathered information regarding how often climate events occur and performed a diligent conversion of reported damages into a consistent numeric format. This [Phase1](https://github.com/AbdullahRiz/Capstone/blob/main/extended_aggregate_data.csv) conversion was critical for further accurate quantitative assessments.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+### Phase 2  {.tabset .tabset-dropdown}
+After the successful aggregation of the dataset, the next crucial phase involved the construction of our dependent variable. This variable will help predict whether a weather event is likely to occur within a two-year forecast horizon for any given geographical unit and time frame. To implement this, we appended a new column, labeled “y”, to our dataset. 
+
+
+Before adding this column “y”, it was imperative to generate a comprehensive matrix of all the possible geographic and temporal combinations. This exhaustive array encompassed every possible combination, even those not represented in the original dataset. For instances absent from the raw data, we assigned a default value of zero for both the event occurrences and associated damages. This preemptive measure was essential to ensure that our model accounts for periods and locations where no events were recorded.
+
+Once the matrix is established, we derive the dependent variable by surveying each record. We marked a “1” in column “y” if any weather events are recorded for the corresponding two-year period ahead of the original date. Conversely, a “0” will denote the absence of events. In scenarios where the required two years of future data is unavailable, the entry will be left as Null or N/A.
+Two critical considerations accompanied this process:
+
+
+Records containing Null or N/A in the dependent variable column were excluded from the dataset before the start of the model training to ensure the integrity and applicability of our predictive analytics.
+
+
+If the aggregated data [Phase2](https://github.com/AbdullahRiz/Capstone/blob/main/phase_2onemonth_data.csv) at the state level yielded a uniform value of “1” across the dependent variable, indicative of an overgeneralization, it necessitates a transition to a more refined geographical granularity. This entails the adoption of smaller spatial units such as ZIP codes, hexbin locations, or a latitude-longitude grid to achieve a more discerning and useful predictive model.
+
+
+
+
+
+
+
+
+### Phase 3
+
+To enhance the predictive capability of our model and enhance the analytical depth of our dataset, we incorporated a set of engineered features based on historical data as a part of [Phase3](https://github.com/AbdullahRiz/Capstone/blob/main/final_data.csv). These features incorporated rolling lookback metrics that reflected the frequency and severity of past weather events.
+We also had to develop variables that quantified the cumulative number of events and aggregate damages over preceding time intervals. For a comprehensive temporal analysis, these intervals are categorized into short, medium, and long-term periods, providing a distinct window into the historical pattern of weather impacts.
+This approach is a multi-faceted perspective that offers variables such as “number of events in the previous three time periods” and “total damage in the previous three time periods.” By adjusting the length of these lookback windows, we can capture the immediate and extended impacts of climate events; this enhances the model's comprehension of recent and past conditions.
+
+Our finalized dataset will, therefore, be a robust matrix featuring these meticulously crafted lookback variables along with the original data. This sets a solid foundation for a predictive model of effective accuracy and reliability.
+
+
+
+
+
+
+Column
+---------------------------------
 
 ```{r}
 # Transcribe the content of the images into vectors
@@ -118,166 +260,18 @@ events <- c(events, rep("", max_length - length(events)))
 removed_data <- data.frame(Location = locations, Event = events)
 
 # Use kable to create a table
-kable(removed_data, caption = "Combined List of Removed Locations and Weather Events")
+kable(removed_data, caption = "List of Removed Locations and Weather Events from our Data Frame")
 
 ```
 
 
+# Damage Analysis{data-navmenu="Weather Data"}
 
-```{r removed-weather-events, fig.cap="List of removed weather events", echo=FALSE}
-#knitr::include_graphics("removedevents.png")
-```
-
- 
-```{r}
-#knitr::include_graphics("removedevents.png")
-```
-  
-
-
-
-
-### Rail Data  {.col-6}
-
-Content related to Rail Data goes here .....
-
-
-
-
-
-
-
-
-
-
-Data Dictionary
-=======================================================================
-
-
-
-
-Column{data-witdh = 650}
---------------------------------
-
-
-### Important Variables
-
-- **BEGIN_YEARMONTH**: The Vehicle Identification Number's first 10 characters, uniquely identifying the vehicle's make, model, and year.
-
-- **BEGIN_DAY**: The county in which the vehicle is registered.
-
-- **END_YEARMONTH**: The state in which the vehicle is registered, with all vehicles in this dataset registered in WA (Washington).
-
-- **END_DAY**: The postal code of the vehicle's registered address.
-
-- **EVENT_ID**: The model of the vehicle as designated by the manufacturer.
-
-- **STATE**: The type of electric vehicle, such as Battery Electric Vehicle (BEV).
-
-- **STATE_FIPS**: Indicates whether the vehicle is eligible for Clean Alternative Fuel Vehicle benefits.
-
-- **YEAR**: The maximum distance the vehicle can travel on a single charge, in miles.
-
-- **MONTH_NAME**: The Manufacturer's Suggested Retail Price at the base model level, not including optional features or taxes.
-
-- **EVENT_TYPE**: The legislative district in which the vehicle is registered.
-
-- **DAMAGE_PROPERTY**: A unique identifier for the vehicle assigned by the Department of Licensing.
-
-- **BEGIN_LAT**: Geographic coordinates (longitude and latitude) indicating the vehicle's registered location.
-
-- **BEGIN_LON**: The electric utility provider for the vehicle's registered address.
-
-- **END_LAT**: The 2020 Census Tract code for the vehicle's registered location.
-
-- **END_LON**: The production year of the vehicle.
-
-- **TOTAL_DAMAGE**: The manufacturer or brand of the vehicle.
-
-
-Column{data-width=650}
----------------------------------
-
-### Dataframe
-
-```{r}
-
-  library(rio)             # data import/export     
-  library(here)            # locate files
-      
- 
-  library(shiny)           # interactive figures
-  library(plotly)           # interactive figures
-
-# import the linelist
-linelist <- import("clean_data.csv")
-kable(head(linelist))
-
-```
-
-
-
-Column{data-width=650}
----------------------------------
-### Dataframe
-
-```{r}
-# import the linelist
-linelistRail <- import("North_American_Rail_Network_Lines.csv")
-kable(head(linelistRail))
-```
-
-
-
-# Intro {data-navmenu="Weather Data"}
-
-Column {.tabset}
+Column {data-width=500}
 -------------------------------------
 
-### Phase 1
-
-We need to take the messy raw data and aggregate it both on a geography and on a time basis.  For the initial attempt in order to keep things simple, you might want to just look at high level aggregations such as State for geography and Month for time. We will want to make the geographic area smaller – ZIP code, hexbin, or some kind of Lat/Lng based grid. If you go to hexbin or grid, you will need to assign some kind of id to the grid or bin location and use that for the geography.
- 
-We should sum up the count of events and the total damages. You will have to convert the damages from the raw data to numeric.
- 
-
-
-[Complete.data](https://drive.google.com/drive/u/1/folders/1khboQxJ2KM7M5ieV3zTWZTCpEGWb8Fja)
-[Phase1](https://github.com/AbdullahRiz/Capstone/blob/main/extended_aggregate_data.csv)
-[Phase2](https://github.com/AbdullahRiz/Capstone/blob/main/phase_2onemonth_data.csv)
-[Phase3](https://github.com/AbdullahRiz/Capstone/blob/main/final_data.csv)
-
-### Phase 2  {.tabset .tabset-dropdown}
-Once we have the aggregated data set, we need to create the dependent variable: For the given geography and time period, does a weather event occur two years into the future. This will add a new column “y” to the table.
-
-Before creating your Y column, You first must create all possible combinations of geography and time. For any combinations that are not in the data, you should fill the events and damage with 0. This will be needed because there will be some combinations of geography and time that do not have an event and will not otherwise be in the data.
-
-
-Once this is done the dependent variable can be created. For each row, look for the appropriate time period (two years in this case) and set to “1” if there are any events, “0” if there are no events, and Null/NA if we don’t have two years of forward data.
- 
-Two notes here:
- 
-1.	We will throw out the NA/Null data before model building
-2.	It is possible (probable) that every y value will be “1” if we keep the geography at the state level. If so, we must go to a smaller geography.
-
-
-### Phase 3
-
-In order to build a model that has a chance of actually working, we will likely need to create some additional features in our data. A good start would be some rolling lookback variables like “number of events in the prior 3 time periods”, “total damage in the prior 3 time periods” and vary they time periods to capture short medium and long term.  So the final data set would look something like this:
-
-# Damage Analysis {data-navmenu="Weather Data"}
-
-testing 123 hello helllo 
-
-
-Column{data-width=350}
----------------------------------
+### Total Damage 
 ```{r} 
-library(readr)
-library(dplyr)
-library(ggplot2)
-library(plotly)
-library(scales)
 
 # Load the data
 data <- read_csv("phase_2onemonth_data.csv")
@@ -308,17 +302,9 @@ ggplotly(p)
 
 ```
 
-
-Column{data-width=650}
----------------------------------
-
-### Normalized Data
+### Normalized by State Area
 
 ```{r}
-# Load required libraries
-library(plotly)
-library(dplyr)
-
 # Read the data
 data <- read.csv("Final_Normalized_Damage_Per_State.csv")
 
@@ -342,16 +328,56 @@ fig
 ```
 
 
-# Top Five {data-navmenu="Weather Data"}
 
-```{r} 
-knitr::include_graphics("top 5 events.png")
-```
+Column {data-width=500}
+-------------------------------------
+### 
+The bar graph succinctly prioritizes states based on the financial impact of weather events. Texas emerges as the outlier with the highest damages, suggesting a critical review of its disaster response and infrastructure resilience is warranted. The presence of Midwestern states like Iowa and Nebraska highlights the significant toll of storms in the nation's agricultural heartland, raising questions about the interplay between climate events and economic vulnerabilities tied to agriculture and land use.
+Interestingly, coastal and southern states, typically the focus of hurricane-related damages, are interspersed among less frequently discussed states like Illinois and Wisconsin. This distribution prompts us to consider a broader range of climate impacts beyond the obvious high-risk areas.
+The chart's data can inform not just reactive policies but proactive investments in technology and infrastructure to fortify states against predictable damages. It also hints at the potential benefits of cross-state learning, where lower-impact states could share best practices in climate event mitigation.
+This analysis underscores the importance of a strategic, data-informed approach to climate resilience, where the allocation of resources is as dynamic and varied as the weather patterns themselves.
+
+
+
+###   
+This normalized bar chart provides an adjusted view of the financial impact of weather events, accounting for the size of each state. This normalization allows for a more equitable comparison by illustrating the damage relative to the geographic area, rather than total damages which can be skewed by the size and economic activity of a state.
+From the chart, Iowa stands out with the highest damage per square mile, indicating that, when size is considered, its relative economic impact from weather events is the most substantial. This could reflect a high density of valuable assets or infrastructure within a smaller area, or an exceptional severity of weather events.
+States like Ohio, Mississippi, and New Jersey follow, suggesting these states, though varying in size and geography, face significant impacts from weather events relative to their area. Interestingly, larger states with significant total damages like Texas appear further down the list when the damage is adjusted per square mile, highlighting the importance of considering geographic scale in such analyses.
+The chart also informs us that less geographically extensive states with high population densities or substantial infrastructure—like Delaware and New Jersey—may experience high normalized damages, underscoring the potential for significant impact in smaller areas.
+
+
+
+
+
+
+
+
+
+
+<!-- # Top Five Weather Events{data-navmenu="Weather Data"} -->
+
+<!-- ```{r}  -->
+<!-- knitr::include_graphics("top 5 events.png") -->
+<!-- ``` -->
 
 
 
 Monthly Plots {data-navmenu="Weather Data" data-orientation=columns}
 =====================
+The left map illustrates the total number of weather-related events that occurred across the United States each  month over the span of 72 years (1950-2022). The states are color-coded according to the volume of events, with darker shades indicating a higher frequency. This visual representation highlights regions that are more active during the first month of the year, which could be critical for understanding seasonal patterns and for preparing emergency management resources accordingly.
+
+
+
+On the right, the map displays the normalized data of weather events, taking into account the land area of each state. By normalizing these figures, we gain a proportional insight into the intensity of weather events relative to state size. This normalization allows for an equitable comparison across states, ensuring that both large and small states can be accurately assessed for their weather event density.
+
+
+
+Utilize the monthly tabs below to navigate through weather event data for different times of the year. This feature allows for a quick comparative analysis to identify monthly and seasonal trends in weather-related events across the nation.
+
+
+
+Note that the 'Total Events' map may show significant activity in larger states, while the 'Normalized Events' map can reveal which states have a higher density of events per square mile. It's crucial to consider both perspectives when assessing the impact and preparing for future weather conditions.
+
 
 Columns {.tabset}
 ----------------------------
@@ -362,23 +388,12 @@ Columns {.tabset}
 
    
 
-month of january is the first month of the year ld;
 
-klshaflvhjlwqhv
-
-nasfj;kvh
-
-'asnfjvha
 
 
 
 ```{r}
-library(plotly)
-library(dplyr)
-library(readr)
-library(maps) # for state.abb and state.name
-
-# Read your data
+# Read data
 data <- read_csv("phase_2onemonth_data.csv")
 
 # Create the November dataframe 'nov' and filter for the month of November using the 'Date' column
@@ -387,11 +402,10 @@ jan <- data %>%
   filter(month(Date) == 1) %>%
   group_by(STATE) %>%
   summarise(total = sum(Events), .groups = 'drop') %>%
-  mutate(state = toupper(STATE), # Ensure this is the name of the state column in your data
+  mutate(state = toupper(STATE), 
          code = state.abb[match(state, toupper(state.name))]) # Match against upper case state names
 
 
-# Now, you can create your plotly map
 fig <- plot_geo(jan, 
                 locations = ~code, 
                 z = ~total, 
@@ -421,19 +435,16 @@ fig
 
 
 ### Feb
-
-hello test 123
 ```{r}
 feb <- data %>%
   mutate(Date = as.Date(Date, format = "%Y-%m-%d")) %>%
   filter(month(Date) == 2) %>%
   group_by(STATE) %>%
   summarise(total = sum(Events), .groups = 'drop') %>%
-  mutate(state = toupper(STATE), # Ensure this is the name of the state column in your data
+  mutate(state = toupper(STATE), 
          code = state.abb[match(state, toupper(state.name))]) # Match against upper case state names
 
 
-# Now, you can create your plotly map
 fig <- plot_geo(feb, locations = ~code, z = ~total, text = ~state,
                 colors = 'Reds', locationmode = 'USA-states') %>%
   colorbar(title = "Total Events") %>%
@@ -464,11 +475,10 @@ mar <- data %>%
   filter(month(Date) == 3) %>%
   group_by(STATE) %>%
   summarise(total = sum(Events), .groups = 'drop') %>%
-  mutate(state = toupper(STATE), # Ensure this is the name of the state column in your data
+  mutate(state = toupper(STATE), 
          code = state.abb[match(state, toupper(state.name))]) # Match against upper case state names
 
 
-# Now, you can create your plotly map
 fig <- plot_geo(mar, locations = ~code, z = ~total, text = ~state,
                 colors = 'Reds', locationmode = 'USA-states') %>%
   colorbar(title = "Total Events") %>%
@@ -497,11 +507,11 @@ apr <- data %>%
   filter(month(Date) == 4) %>%
   group_by(STATE) %>%
   summarise(total = sum(Events), .groups = 'drop') %>%
-  mutate(state = toupper(STATE), # Ensure this is the name of the state column in your data
+  mutate(state = toupper(STATE), 
          code = state.abb[match(state, toupper(state.name))]) # Match against upper case state names
 
 
-# Now, you can create your plotly map
+
 fig <- plot_geo(apr, locations = ~code, z = ~total, text = ~state,
                 colors = 'Reds', locationmode = 'USA-states') %>%
   colorbar(title = "Total Events") %>%
@@ -528,11 +538,11 @@ may <- data %>%
   filter(month(Date) == 5) %>%
   group_by(STATE) %>%
   summarise(total = sum(Events), .groups = 'drop') %>%
-  mutate(state = toupper(STATE), # Ensure this is the name of the state column in your data
+  mutate(state = toupper(STATE), 
          code = state.abb[match(state, toupper(state.name))]) # Match against upper case state names
 
 
-# Now, you can create your plotly map
+
 fig <- plot_geo(may, locations = ~code, z = ~total, text = ~state,
                 colors = 'Reds', locationmode = 'USA-states') %>%
   colorbar(title = "Total Events") %>%
@@ -557,11 +567,10 @@ june <- data %>%
   filter(month(Date) == 6) %>%
   group_by(STATE) %>%
   summarise(total = sum(Events), .groups = 'drop') %>%
-  mutate(state = toupper(STATE), # Ensure this is the name of the state column in your data
+  mutate(state = toupper(STATE), 
          code = state.abb[match(state, toupper(state.name))]) # Match against upper case state names
 
 
-# Now, you can create your plotly map
 fig <- plot_geo(june, locations = ~code, z = ~total, text = ~state,
                 colors = 'Reds', locationmode = 'USA-states') %>%
   colorbar(title = "Total Events") %>%
@@ -586,11 +595,11 @@ july <- data %>%
   filter(month(Date) == 7) %>%
   group_by(STATE) %>%
   summarise(total = sum(Events), .groups = 'drop') %>%
-  mutate(state = toupper(STATE), # Ensure this is the name of the state column in your data
+  mutate(state = toupper(STATE), 
          code = state.abb[match(state, toupper(state.name))]) # Match against upper case state names
 
 
-# Now, you can create your plotly map
+
 fig <- plot_geo(july, locations = ~code, z = ~total, text = ~state,
                 colors = 'Reds', locationmode = 'USA-states') %>%
   colorbar(title = "Total Events") %>%
@@ -616,11 +625,11 @@ aug <- data %>%
   filter(month(Date) == 8) %>%
   group_by(STATE) %>%
   summarise(total = sum(Events), .groups = 'drop') %>%
-  mutate(state = toupper(STATE), # Ensure this is the name of the state column in your data
+  mutate(state = toupper(STATE), 
          code = state.abb[match(state, toupper(state.name))]) # Match against upper case state names
 
 
-# Now, you can create your plotly map
+
 fig <- plot_geo(aug, locations = ~code, z = ~total, text = ~state,
                 colors = 'Reds', locationmode = 'USA-states') %>%
   colorbar(title = "Total Events") %>%
@@ -647,11 +656,11 @@ sep <- data %>%
   filter(month(Date) == 9) %>%
   group_by(STATE) %>%
   summarise(total = sum(Events), .groups = 'drop') %>%
-  mutate(state = toupper(STATE), # Ensure this is the name of the state column in your data
+  mutate(state = toupper(STATE), 
          code = state.abb[match(state, toupper(state.name))]) # Match against upper case state names
 
 
-# Now, you can create your plotly map
+
 fig <- plot_geo(sep, locations = ~code, z = ~total, text = ~state,
                 colors = 'Reds', locationmode = 'USA-states') %>%
   colorbar(title = "Total Events") %>%
@@ -677,11 +686,11 @@ oct <- data %>%
   filter(month(Date) == 10) %>%
   group_by(STATE) %>%
   summarise(total = sum(Events), .groups = 'drop') %>%
-  mutate(state = toupper(STATE), # Ensure this is the name of the state column in your data
+  mutate(state = toupper(STATE), 
          code = state.abb[match(state, toupper(state.name))]) # Match against upper case state names
 
 
-# Now, you can create your plotly map
+
 fig <- plot_geo(oct, locations = ~code, z = ~total, text = ~state,
                 colors = 'Reds', locationmode = 'USA-states') %>%
   colorbar(title = "Total Events") %>%
@@ -705,12 +714,6 @@ fig
 
 ### Nov
 ```{r}
-library(plotly)
-library(dplyr)
-library(readr)
-library(maps) # for state.abb and state.name
-
-# Read your data
 data <- read_csv("phase_2onemonth_data.csv")
 
 # Create the November dataframe 'nov' and filter for the month of November using the 'Date' column
@@ -719,11 +722,11 @@ nov <- data %>%
   filter(month(Date) == 11) %>%
   group_by(STATE) %>%
   summarise(total = sum(Events), .groups = 'drop') %>%
-  mutate(state = toupper(STATE), # Ensure this is the name of the state column in your data
+  mutate(state = toupper(STATE), 
          code = state.abb[match(state, toupper(state.name))]) # Match against upper case state names
 
 
-# Now, you can create your plotly map
+
 fig <- plot_geo(nov, locations = ~code, z = ~total, text = ~state,
                 colors = 'Reds', locationmode = 'USA-states') %>%
   colorbar(title = "Total Events") %>%
@@ -744,21 +747,11 @@ fig
 
 
 ### Dec
-
-hello test 123
 ```{r}
-library(plotly)
-library(dplyr)
-library(readr)
-library(maps) # for state.abb and state.name
-
-# Read your data
 data <- read_csv("phase_2onemonth_data.csv")
 
 
-# input -> data, month, isStandarized
-# TODO: subset on month, and plot 
-# output -> plot
+
 
 
 
@@ -768,11 +761,11 @@ dec <- data %>%
   filter(month(Date) == 12) %>%
   group_by(STATE) %>%
   summarise(total = sum(Events), .groups = 'drop') %>%
-  mutate(state = toupper(STATE), # Ensure this is the name of the state column in your data
+  mutate(state = toupper(STATE), 
          code = state.abb[match(state, toupper(state.name))]) # Match against upper case state names
 
 
-# Now, you can create your plotly map
+
 fig <- plot_geo(dec, locations = ~code, z = ~total, text = ~state,
                 colors = 'Reds', locationmode = 'USA-states') %>%
   colorbar(title = "Total Events") %>%
@@ -800,9 +793,6 @@ Column {.tabset}
 ### Jan
 
 ```{r}
-library(plotly)
-library(dplyr)
-
 # Read the normalized events data
 events_data <- read.csv("Final_Normalized_Events_Data_No_DC.csv")
 events_data$Month <- as.factor(events_data$Month)
@@ -815,10 +805,8 @@ month_data <- events_data %>%
   summarise(Accurate_Events_Per_Square_Mile = sum(Accurate_Events_Per_Square_Mile)) %>%
   mutate(
     state = toupper(State),
-    code = state.abb[match(State, toupper(state.name))]) # Ensure state.abb and state.name are defined
+    code = state.abb[match(State, toupper(state.name))]) 
 
-# Define a custom color scale similar to the one in the provided image
-# You'll need to replace these colors with the ones from your image
 custom_color_scale <- c(
   '0' = '#fee5d9',   # light shade of color
   '0.5' = '#fcae91', # medium shade of color
@@ -833,7 +821,7 @@ fig <- plot_geo(month_data) %>%
     locationmode = 'USA-states',
     colorscale = custom_color_scale
   ) %>%
-  colorbar(title = "Accurate Events per Sq Mile") %>%
+  colorbar(title = "Density of Events per Sq Mile") %>%
   layout(
     title = paste('Normalized Events for', month.abb[as.numeric(selected_month)], 'in the USA'),
     geo = list(
@@ -853,9 +841,6 @@ fig
 ### Feb
 
 ```{r}
-library(plotly)
-library(dplyr)
-
 # Read the normalized events data
 events_data <- read.csv("Final_Normalized_Events_Data_No_DC.csv")
 events_data$Month <- as.factor(events_data$Month)
@@ -868,10 +853,8 @@ month_data <- events_data %>%
   summarise(Accurate_Events_Per_Square_Mile = sum(Accurate_Events_Per_Square_Mile)) %>%
   mutate(
     state = toupper(State),
-    code = state.abb[match(State, toupper(state.name))]) # Ensure state.abb and state.name are defined
+    code = state.abb[match(State, toupper(state.name))]) 
 
-# Define a custom color scale similar to the one in the provided image
-# You'll need to replace these colors with the ones from your image
 custom_color_scale <- c(
   '0' = '#fee5d9',   # light shade of color
   '0.5' = '#fcae91', # medium shade of color
@@ -886,7 +869,7 @@ fig <- plot_geo(month_data) %>%
     locationmode = 'USA-states',
     colorscale = custom_color_scale
   ) %>%
-  colorbar(title = "Accurate Events per Sq Mile") %>%
+  colorbar(title = "Density of Events per Sq Mile") %>%
   layout(
     title = paste('Normalized Events for', month.abb[as.numeric(selected_month)], 'in the USA'),
     geo = list(
@@ -906,8 +889,6 @@ fig
 
 ### Mar
 ```{r}
-library(plotly)
-library(dplyr)
 
 # Read the normalized events data
 events_data <- read.csv("Final_Normalized_Events_Data_No_DC.csv")
@@ -921,10 +902,8 @@ month_data <- events_data %>%
   summarise(Accurate_Events_Per_Square_Mile = sum(Accurate_Events_Per_Square_Mile)) %>%
   mutate(
     state = toupper(State),
-    code = state.abb[match(State, toupper(state.name))]) # Ensure state.abb and state.name are defined
+    code = state.abb[match(State, toupper(state.name))]) 
 
-# Define a custom color scale similar to the one in the provided image
-# You'll need to replace these colors with the ones from your image
 custom_color_scale <- c(
   '0' = '#fee5d9',   # light shade of color
   '0.5' = '#fcae91', # medium shade of color
@@ -939,7 +918,7 @@ fig <- plot_geo(month_data) %>%
     locationmode = 'USA-states',
     colorscale = custom_color_scale
   ) %>%
-  colorbar(title = "Accurate Events per Sq Mile") %>%
+  colorbar(title = "Density of Events per Sq Mile") %>%
   layout(
     title = paste('Normalized Events for', month.abb[as.numeric(selected_month)], 'in the USA'),
     geo = list(
@@ -959,9 +938,6 @@ fig
 
 ### Apr
 ```{r}
-library(plotly)
-library(dplyr)
-
 # Read the normalized events data
 events_data <- read.csv("Final_Normalized_Events_Data_No_DC.csv")
 events_data$Month <- as.factor(events_data$Month)
@@ -974,10 +950,8 @@ month_data <- events_data %>%
   summarise(Accurate_Events_Per_Square_Mile = sum(Accurate_Events_Per_Square_Mile)) %>%
   mutate(
     state = toupper(State),
-    code = state.abb[match(State, toupper(state.name))]) # Ensure state.abb and state.name are defined
+    code = state.abb[match(State, toupper(state.name))]) 
 
-# Define a custom color scale similar to the one in the provided image
-# You'll need to replace these colors with the ones from your image
 custom_color_scale <- c(
   '0' = '#fee5d9',   # light shade of color
   '0.5' = '#fcae91', # medium shade of color
@@ -992,7 +966,7 @@ fig <- plot_geo(month_data) %>%
     locationmode = 'USA-states',
     colorscale = custom_color_scale
   ) %>%
-  colorbar(title = "Accurate Events per Sq Mile") %>%
+  colorbar(title = "Density of Events per Sq Mile") %>%
   layout(
     title = paste('Normalized Events for', month.abb[as.numeric(selected_month)], 'in the USA'),
     geo = list(
@@ -1011,9 +985,6 @@ fig
 
 ### May
 ```{r}
-library(plotly)
-library(dplyr)
-
 # Read the normalized events data
 events_data <- read.csv("Final_Normalized_Events_Data_No_DC.csv")
 events_data$Month <- as.factor(events_data$Month)
@@ -1026,10 +997,8 @@ month_data <- events_data %>%
   summarise(Accurate_Events_Per_Square_Mile = sum(Accurate_Events_Per_Square_Mile)) %>%
   mutate(
     state = toupper(State),
-    code = state.abb[match(State, toupper(state.name))]) # Ensure state.abb and state.name are defined
+    code = state.abb[match(State, toupper(state.name))]) 
 
-# Define a custom color scale similar to the one in the provided image
-# You'll need to replace these colors with the ones from your image
 custom_color_scale <- c(
   '0' = '#fee5d9',   # light shade of color
   '0.5' = '#fcae91', # medium shade of color
@@ -1044,7 +1013,7 @@ fig <- plot_geo(month_data) %>%
     locationmode = 'USA-states',
     colorscale = custom_color_scale
   ) %>%
-  colorbar(title = "Accurate Events per Sq Mile") %>%
+  colorbar(title = "Density of Events per Sq Mile") %>%
   layout(
     title = paste('Normalized Events for', month.abb[as.numeric(selected_month)], 'in the USA'),
     geo = list(
@@ -1063,8 +1032,6 @@ fig
 
 ### Jun
 ```{r}
-library(plotly)
-library(dplyr)
 
 # Read the normalized events data
 events_data <- read.csv("Final_Normalized_Events_Data_No_DC.csv")
@@ -1078,10 +1045,8 @@ month_data <- events_data %>%
   summarise(Accurate_Events_Per_Square_Mile = sum(Accurate_Events_Per_Square_Mile)) %>%
   mutate(
     state = toupper(State),
-    code = state.abb[match(State, toupper(state.name))]) # Ensure state.abb and state.name are defined
+    code = state.abb[match(State, toupper(state.name))]) 
 
-# Define a custom color scale similar to the one in the provided image
-# You'll need to replace these colors with the ones from your image
 custom_color_scale <- c(
   '0' = '#fee5d9',   # light shade of color
   '0.5' = '#fcae91', # medium shade of color
@@ -1096,7 +1061,7 @@ fig <- plot_geo(month_data) %>%
     locationmode = 'USA-states',
     colorscale = custom_color_scale
   ) %>%
-  colorbar(title = "Accurate Events per Sq Mile") %>%
+  colorbar(title = "Density of Events per Sq Mile") %>%
   layout(
     title = paste('Normalized Events for', month.abb[as.numeric(selected_month)], 'in the USA'),
     geo = list(
@@ -1115,8 +1080,6 @@ fig
 
 ### Jul
 ```{r}
-library(plotly)
-library(dplyr)
 
 # Read the normalized events data
 events_data <- read.csv("Final_Normalized_Events_Data_No_DC.csv")
@@ -1130,10 +1093,8 @@ month_data <- events_data %>%
   summarise(Accurate_Events_Per_Square_Mile = sum(Accurate_Events_Per_Square_Mile)) %>%
   mutate(
     state = toupper(State),
-    code = state.abb[match(State, toupper(state.name))]) # Ensure state.abb and state.name are defined
+    code = state.abb[match(State, toupper(state.name))]) 
 
-# Define a custom color scale similar to the one in the provided image
-# You'll need to replace these colors with the ones from your image
 custom_color_scale <- c(
   '0' = '#fee5d9',   # light shade of color
   '0.5' = '#fcae91', # medium shade of color
@@ -1148,7 +1109,7 @@ fig <- plot_geo(month_data) %>%
     locationmode = 'USA-states',
     colorscale = custom_color_scale
   ) %>%
-  colorbar(title = "Accurate Events per Sq Mile") %>%
+  colorbar(title = "Density of Events per Sq Mile") %>%
   layout(
     title = paste('Normalized Events for', month.abb[as.numeric(selected_month)], 'in the USA'),
     geo = list(
@@ -1166,8 +1127,6 @@ fig
 
 ### Aug
 ```{r}
-library(plotly)
-library(dplyr)
 
 # Read the normalized events data
 events_data <- read.csv("Final_Normalized_Events_Data_No_DC.csv")
@@ -1181,10 +1140,8 @@ month_data <- events_data %>%
   summarise(Accurate_Events_Per_Square_Mile = sum(Accurate_Events_Per_Square_Mile)) %>%
   mutate(
     state = toupper(State),
-    code = state.abb[match(State, toupper(state.name))]) # Ensure state.abb and state.name are defined
+    code = state.abb[match(State, toupper(state.name))]) 
 
-# Define a custom color scale similar to the one in the provided image
-# You'll need to replace these colors with the ones from your image
 custom_color_scale <- c(
   '0' = '#fee5d9',   # light shade of color
   '0.5' = '#fcae91', # medium shade of color
@@ -1199,7 +1156,7 @@ fig <- plot_geo(month_data) %>%
     locationmode = 'USA-states',
     colorscale = custom_color_scale
   ) %>%
-  colorbar(title = "Accurate Events per Sq Mile") %>%
+  colorbar(title = "Density of Events per Sq Mile") %>%
   layout(
     title = paste('Normalized Events for', month.abb[as.numeric(selected_month)], 'in the USA'),
     geo = list(
@@ -1217,8 +1174,6 @@ fig
 
 ### Sep
 ```{r}
-library(plotly)
-library(dplyr)
 
 # Read the normalized events data
 events_data <- read.csv("Final_Normalized_Events_Data_No_DC.csv")
@@ -1232,10 +1187,8 @@ month_data <- events_data %>%
   summarise(Accurate_Events_Per_Square_Mile = sum(Accurate_Events_Per_Square_Mile)) %>%
   mutate(
     state = toupper(State),
-    code = state.abb[match(State, toupper(state.name))]) # Ensure state.abb and state.name are defined
+    code = state.abb[match(State, toupper(state.name))]) 
 
-# Define a custom color scale similar to the one in the provided image
-# You'll need to replace these colors with the ones from your image
 custom_color_scale <- c(
   '0' = '#fee5d9',   # light shade of color
   '0.5' = '#fcae91', # medium shade of color
@@ -1250,7 +1203,7 @@ fig <- plot_geo(month_data) %>%
     locationmode = 'USA-states',
     colorscale = custom_color_scale
   ) %>%
-  colorbar(title = "Accurate Events per Sq Mile") %>%
+  colorbar(title = "Density of Events per Sq Mile") %>%
   layout(
     title = paste('Normalized Events for', month.abb[as.numeric(selected_month)], 'in the USA'),
     geo = list(
@@ -1267,8 +1220,6 @@ fig
 
 ### Oct
 ```{r}
-library(plotly)
-library(dplyr)
 
 # Read the normalized events data
 events_data <- read.csv("Final_Normalized_Events_Data_No_DC.csv")
@@ -1282,10 +1233,8 @@ month_data <- events_data %>%
   summarise(Accurate_Events_Per_Square_Mile = sum(Accurate_Events_Per_Square_Mile)) %>%
   mutate(
     state = toupper(State),
-    code = state.abb[match(State, toupper(state.name))]) # Ensure state.abb and state.name are defined
+    code = state.abb[match(State, toupper(state.name))]) 
 
-# Define a custom color scale similar to the one in the provided image
-# You'll need to replace these colors with the ones from your image
 custom_color_scale <- c(
   '0' = '#fee5d9',   # light shade of color
   '0.5' = '#fcae91', # medium shade of color
@@ -1300,7 +1249,7 @@ fig <- plot_geo(month_data) %>%
     locationmode = 'USA-states',
     colorscale = custom_color_scale
   ) %>%
-  colorbar(title = "Accurate Events per Sq Mile") %>%
+  colorbar(title = "Density of Events per Sq Mile") %>%
   layout(
     title = paste('Normalized Events for', month.abb[as.numeric(selected_month)], 'in the USA'),
     geo = list(
@@ -1317,9 +1266,6 @@ fig
 
 ### Nov
 ```{r}
-library(plotly)
-library(dplyr)
-
 # Read the normalized events data
 events_data <- read.csv("Final_Normalized_Events_Data_No_DC.csv")
 events_data$Month <- as.factor(events_data$Month)
@@ -1332,10 +1278,8 @@ month_data <- events_data %>%
   summarise(Accurate_Events_Per_Square_Mile = sum(Accurate_Events_Per_Square_Mile)) %>%
   mutate(
     state = toupper(State),
-    code = state.abb[match(State, toupper(state.name))]) # Ensure state.abb and state.name are defined
+    code = state.abb[match(State, toupper(state.name))]) 
 
-# Define a custom color scale similar to the one in the provided image
-# You'll need to replace these colors with the ones from your image
 custom_color_scale <- c(
   '0' = '#fee5d9',   # light shade of color
   '0.5' = '#fcae91', # medium shade of color
@@ -1350,7 +1294,7 @@ fig <- plot_geo(month_data) %>%
     locationmode = 'USA-states',
     colorscale = custom_color_scale
   ) %>%
-  colorbar(title = "Accurate Events per Sq Mile") %>%
+  colorbar(title = "Density of Events per Sq Mile") %>%
   layout(
     title = paste('Normalized Events for', month.abb[as.numeric(selected_month)], 'in the USA'),
     geo = list(
@@ -1367,10 +1311,7 @@ fig
 
 
 ### Dec
-.dnvklasvjkslavhasklvnasknva
 ```{r}
-library(plotly)
-library(dplyr)
 
 # Read the normalized events data
 events_data <- read.csv("Final_Normalized_Events_Data_No_DC.csv")
@@ -1384,10 +1325,8 @@ month_data <- events_data %>%
   summarise(Accurate_Events_Per_Square_Mile = sum(Accurate_Events_Per_Square_Mile)) %>%
   mutate(
     state = toupper(State),
-    code = state.abb[match(State, toupper(state.name))]) # Ensure state.abb and state.name are defined
+    code = state.abb[match(State, toupper(state.name))]) 
 
-# Define a custom color scale similar to the one in the provided image
-# You'll need to replace these colors with the ones from your image
 custom_color_scale <- c(
   '0' = '#fee5d9',   # light shade of color
   '0.5' = '#fcae91', # medium shade of color
@@ -1402,7 +1341,7 @@ fig <- plot_geo(month_data) %>%
     locationmode = 'USA-states',
     colorscale = custom_color_scale
   ) %>%
-  colorbar(title = "Accurate Events per Sq Mile") %>%
+  colorbar(title = "Density of Events per Sq Mile") %>%
   layout(
     title = paste('Normalized Events for', month.abb[as.numeric(selected_month)], 'in the USA'),
     geo = list(
@@ -1419,92 +1358,253 @@ fig
 
 
 
-# Betweenness {data-navmenu="Rail Data"}
+# Investigating Nodes {data-navmenu="Rail Data"}
 
 Column {.tabset}
 -------------------------------------
 
-### US Map
+### Centrality Nodes Per State
 
 ```{r} 
-knitr::include_graphics("usmapnode.JPG")
-#"C:\Users\abdul\Downloads\intropic.JPG"
+knitr::include_graphics("usmap.JPG")
+
 ```
 
-### Table {.col-6}
+
+
+
+
+Column
+----------------------
+### Our dataset for the rail component consists of rail lines spanning all 50 states, Mexico, Canada, and DC. It contains information such as timezone, length of segments in miles, to and from node values, etc. We did not subset this data, however, we did narrow the scope to Continental US states only.
+Network Analysis is a method used to find the shortest path using a specific network. It applies to a multitude of applications. i.e. planes, cars, social media analytics, etc.​ It quantifies the number of times a node acts as a bridge along the shortest path between two other nodes. While there are many different methods of conducting network analysis, betweenness was found to be the best for this project. 
 
 ```{r}
-# Transcribe the content of the images into vectors
-locations <- c("Hawaii", "Alaska", "Guam", "Puerto Rico",
-               "Gulf of Mexico", "Atlantic North", "Atlantic South",
-               "Hawaii waters", "E Pacific", "Virgin Islands",
-               "American Samoa", "Lake Superior", "Lake St Clair",
-               "Lake Ontario", "Lake Erie", "Lake Michigan", "Lake Huron")
+states = c("Alabama", "Arizona", "Arkansas", "California", "Colorado", "Connecticut", 
+          "Delaware", "Florida", "Georgia", "Idaho", "Illinois", "Indiana", "Iowa", "Kansas", "Kentucky",
+          "Louisiana", "Maine", "Maryland", "Massachusetts", "Michigan", "Minnesota", "Mississippi", 
+          "Missouri", "Montana", "Nebraska", "Nevada", "New Hampshire", "New Jersey", "New Mexico", 
+          "New York", "North Carolina", "North Dakota", "Ohio", "Oklahoma", "Oregon", "Pennsylvania", "Rhode island", 
+          "South Carolina", "South Dakota", "Tennessee", "Texas", "Utah", "Vermont", "Virginia", 
+          "Washington", "West Virginia", "Wisconsin", "Wyoming")
 
-events <- c("Astronomical Low Tide", "Coastal Flood", "Dense Smoke",
-            "Drought", "Dust Devil", "Dust Storm", "Freezing Fog",
-            "Funnel Cloud", "Heat", "High Surf", "Lake-Effect Snow",
-            "Lakeshore Flood", "Marine Hail", "Marine High Wind",
-            "Marine Strong Wind", "Marine Thunderstorm Wind",
-            "Rip Current", "Waterspout", "Seiche", "Sleet",
-            "Sneakerwave", "Tsunami", "Tropical Depression",
-            "Tropical Storm", "Volcanic Ashfall")
+locationandzip = c("Five Points South, Birmingham, AL, 35233", "701 W Harrison St, Phoenix, AZ, 85007", "Pine Bluff, AR, 71601", "Bakersfield, CA, 93305", "North Denver, Denver, CO, 80202", "Old Saybrook, CT, 06475", 
+                   "1570 Porter Rd Tunnel, Bear, DE, 19701", "Duval County, FL, 32234", "Macon, GA, 31201", "Pocatello, ID", "Dwight Township, IL, 60420", "Wayne, Indianapolis, IN, 46234", " Marshall County, IA, 50158", "North Topeka West, Topeka, KS, 66608", "Lexington, KY, 40508",
+                   " Mid City North, LA, 70805", "2 Newhall St, Fairfield, ME, 04937", "Baltimore, MD", "Worcester, MA, 01604", "Durand, MI, 48429", "Coon Rapids, MN, 55433", "Jackson, MS, 39203", 
+                   "Kansas City, MO, 64053", "Cascade County, MT, 59404", "Blaine, NE, 68901", "Humboldt County, NV, 89445", "Whitefield, NH, 03598", "Rahway City School District, Rahway, NJ", "Valencia County, NM, 87002", 
+                   " Lakefront, Syracuse, NY, 13204", "Stanly County, NC, 28128", "Minot, ND, 58701", "Columbus, OH 432155", "McAlester, OK, 74501", "Lloyd District, Portland, OR, 97232", "Rockville Bridge near Harrisburg, PA", "Warwick, RI, 02886", 
+                   "Columbia, SC", "Wolsey, SD, 57384", "Haywood County, TN, 38012", "Fort Worth, TX, 7610", "400w 200 S, Salt Lake City, UT, 84101", "Essex Junction, VT, 05452", "Burkeville, VA, 23922", 
+                   "4, Auburn, WA, 98001", "Mason County, WV, 25550", "Fox Crossing, WI, 54956", "Converse County, WY, 82633")
+  
+  
+max_length = max(length(states), length(locationandzip))
+states = c(states, rep("", max_length - length(states)))
+Locationandzip = c(locationandzip, rep("", max_length - length(locationandzip)))
 
-# Make both vectors the same length
-max_length <- max(length(locations), length(events))
-locations <- c(locations, rep("", max_length - length(locations)))
-events <- c(events, rep("", max_length - length(events)))
+removed_data = data.frame(States = states, Location = locationandzip)
 
-# Combine into a data frame
-removed_data <- data.frame(Location = locations, Event = events)
+kable(removed_data, caption = "Locations per State with the Highest Betweenness Values")
 
-# Use kable to create a table
-kable(removed_data, caption = "Combined List of Removed Locations and Weather Events")
 
 ```
 
 
 
-### Top plot
+# Centrality Calculations{data-navmenu="Rail Data"}
 
-```{r}
-knitr::include_graphics("topplot.JPG")
-knitr::include_graphics("topplotfive.JPG")
-```
-
-
-# Density {data-navmenu="Rail Data"}
-
-Column {.tabset}
+Column {data-width=500}
 -------------------------------------
 
-### Top Plot
+### Top Centrality Node in the US
+```{r}
+knitr::include_graphics("top1.png")
+
+```
+
+
+
+### Top Five Centrality Node in the US
+```{r}
+knitr::include_graphics("topfive.png")
+```
+
+
+Column {data-width=500}
+-------------------------------------
+
+### 
+After calculating the betweenness centrality for the entire continental US, we found that the node with the highest value, 0.22, is located in Lima, Ohio. This is significant because the [Lima railroad station](https://en.wikipedia.org/wiki/Lima_station_(Pennsylvania_Railroad)) served as a major hub, connecting five major continental railroads across the US in the early twentieth century. These railroads included the Pennsylvania Railroad, Baltimore and Ohio Railroad, New York Railroad, Chicago and St. Louis Railroad, Erie Railroad, and Detroit, Toledo, and Ironton Railroad. By the 1990s, all passenger rail lines had been discontinued. Currently, it has been restored and serves as both a museum and an office.
+
+
+### 
+Based on the visualization, we can see that the top 5 nodes across the US are located in the same general area, although we can only see 3 points, this just means that the nodes are closely located to one another. We can further see a breakdown in location in the chart below.
+
+
+
+```{r}
+# Define nodeid, centralityscore, location
+nodeid <- c(435096, 435236, 416842, 429164, 429161)
+centralityscore <- c(0.2258, 0.2236, 0.2225, 0.2223, 0.2221)
+location <- c("Lima, OH, 45801", "Lima, OH, 45804", "Calumet Township, IN", "Hanna Creighton, Fort Wayne, IN", "LaRez, Fort Wayne, IN")
+
+# Define longlat as a list of pairs
+longlat <- list(
+  c(40.7449, -84.1042),
+  c(40.7457, -84.0882),
+  c(41.5669, -87.4178),
+  c(41.07137, -85.1283),
+  c(41.0714, -85.1302)
+)
+
+# Create a data frame
+removed_data <- data.frame(
+  Nodeid = nodeid,
+  Centralityscore = centralityscore,
+  Latitude = sapply(longlat, "[", 1),  # Extract latitude
+  Longitude = sapply(longlat, "[", 2), # Extract longitude
+  Location = location
+)
+
+# Print the data frame
+print(removed_data)
+
+```
+
+
+# Density of Rail Lines{data-navmenu="Rail Data"}
+
+Column {data-width=500}
+-------------------------------------
+### Rail Line Density across the United States
 
 ```{r}
 knitr::include_graphics("totalrailway.JPG")
+
 ```
 
 
-### Top 5 Plot
+### Rail Line Density Normalized Per State Area Across the United States
 
 ```{r}
 knitr::include_graphics("normalized.JPG")
 ```
 
+Column {data-width=500}
+-------------------------------------
+
+### 
+The purpose of this side-by-side comparison of heatmaps is to show the difference between the density of rail lines and the railway mileage of each state.
+The heatmap to the left shows the total railway miles per US state. From our US DOT rail data, we extracted the state column and miles column which states the distance of individual railway segments that are recorded. The total railway miles for a state were computed by summing up all of the individual railway segments. We can see that Texas has the most railway mileage, followed by Illinois and California. For Texas and California, their large square mileage and high number of export products are leading factors in the ability for more rail lines to run along these states. Illinois’s high concentration of rail lines can be explained by numerous factors such as the state being the center of many of the nation’s rail networks and Chicago being the largest US rail gateway. 
+
+### 
+The heatmap to the right shows the level of railway densities per state by using the summation of the total railway miles and dividing it by the area of a state in square miles. You can tell in states like California and Texas that had high railway mileage, the railway density is on the lower end. Some states such as Florida, Virginia, and North Carolina seem to have stayed in a relatively similar range between the railway mileage and railway density comparisons. There is a pattern of Northeastern states like Illinois, Ohio, and Pennsylvania that have high railway densities and can be historically attributed to being important hubs for the transportation of various goods and a vital junction of rail lines that run from the East to the West. We can see that New Jersey is the most densely populated in railways due to being the most densely populated state and being neighboring states to major cities like Philadelphia and New York City. The state is also home to very large economic activity and a high volume of freight rail traffic.
 
 
-# Analysis {data-navmenu="Rail Data"}
+
+Column
+---------------------------------
+```{r}
+states = c("Alabama", "Arizona", "Arkansas", "California", "Colorado", "Connecticut", 
+          "Delaware", "Florida", "Georgia", "Idaho", "Illinois", "Indiana", "Iowa", "Kansas", "Kentucky",
+          "Louisiana", "Maine", "Maryland", "Massachusetts", "Michigan", "Minnesota", "Mississippi", 
+          "Missouri", "Montana", "Nebraska", "Nevada", "New Hampshire", "New Jersey", "New Mexico", 
+          "New York", "North Carolina", "North Dakota", "Ohio", "Oklahoma", "Oregon", "Pennsylvania", "Rhode island", 
+          "South Carolina", "South Dakota", "Tennessee", "Texas", "Utah", "Vermont", "Virginia", 
+          "Washington", "West Virginia", "Wisconsin", "Wyoming")
+
+totalRailMiles = c(4378.542563, 2677.630689, 3393.561743, 9449.725187, 3846.134864, 
+                   723.317985, 351.891916, 4121.150342, 5683.633174, 2657.700755, 
+                   9997.633193, 5778.981710, 5168.529063, 6344.912323, 3583.793360, 
+                   3716.251201, 1750.035475, 1325.402715, 1481.295083, 5324.299425, 
+                   6360.727051, 3571.201486, 5674.210168, 3917.015401, 4622.214397, 
+                   1894.295982, 633.025014, 2010.217156, 2878.683542, 5113.250043,
+                   4431.976648, 4255.021797, 7557.969068, 4181.508852, 3303.510134, 
+                   7455.399370, 182.936491, 2939.405812, 2410.740032, 3820.640985, 
+                   14316.996541, 2700.535388, 682.473450, 4309.631671, 5452.205625, 
+                   2840.014991, 4587.705868, 2571.143066)
+
+milespermile2 = c(0.083528, 0.023490, 0.063814, 0.057727, 0.036949, 
+                  0.130482, 0.141395, 0.062672, 0.095644, 0.032159, 
+                  0.172630, 0.158678, 0.091848, 0.077115, 0.088691, 
+                  0.070950, 0.049464, 0.106836, 0.140349, 0.055052, 
+                  0.073166, 0.073737, 0.081401, 0.026639, 0.059759, 
+                  0.017132, 0.067709, 0.230495, 0.023675, 0.093727,
+                  0.082349, 0.060176, 0.168608, 0.059822, 0.033580, 
+                  0.161883, 0.118414, 0.091798, 0.031261, 0.090656, 
+                  0.053303, 0.031810, 0.070978, 0.100751, 0.076471, 
+                  0.117210, 070045, 0.070045)
+
+max_length = max(length(states), length(totalRailMiles), length(milespermile2))
+states = c(states, rep("", max_length - length(states)))
+TotalRailMiles = c(totalRailMiles, rep("", max_length - length(totalRailMiles)))
+Milespermile2 = c(milespermile2, rep("", max_length - length(milespermile2)))
+
+removed_data = data.frame(States = states, "Rail Miles" = totalRailMiles ,"Density of Miles" = milespermile2)
+
+kable(removed_data, caption = "Railway Miles by State")
+
+```
+
+
+<!-- # Scatterplot {data-navmenu="Rail Data"} -->
+
+<!-- Column {.col.6} -->
+<!-- ------------------------------------- -->
+<!-- ```{r} -->
+<!-- knitr::include_graphics("scatterplot.JPG") -->
+<!-- ``` -->
+
+<!-- Column {.col.6} -->
+<!-- ------------------------------------- -->
+<!-- ###  -->
+
+<!-- This scatterplot merges the NOAA climate data with the US DOT rail data to show the trends of states based on the number of climate events and the number of rail lines in a state combined. It is seen that the plotting of states follows a linear fashion in that the more climate events that are recorded in a given state, the higher the number of rail lines the state has. Some states stray away from the apparent linear trend that is displayed such as Pennsylvania(PA), Washington(WA), and South Dakota(SD). The states with the greatest climate events to rail line ratios are Texas followed by California which makes sense as the state with some of the highest areas and railway mileage, as found earlier in the rail heatmap comparison.   -->
+
+<!-- Although this doesn't take into account various factors like the square mileage of states and the number of interconnected lines that depend on other states, this scatterplot is still a way to understand the documented number of climate events that have been collected in more recent years and the overall number of individual rail lines recorded per state.  -->
 
 
 
-Recommendations/Suggestions
+Recommendations
 =======================================================================
+
+We propose that Bank of America takes a cumulative look at the states that are the most vulnerable to climate event occurrences as well as noting the states that have the highest rail densities and the points of highest centrality on a state and national level. Inferences can be made from our climate and rail analysis’, which was mostly visualized separately, but further exploring this combined relationship can help with gaining a more holistic understanding of the railway routes that are vulnerable to weather events. This can assist Bank of America in conducting a precise analysis of the severity of climate event damage to railway lines.
+
+This would likely require a climate event analysis on a more magnified scope so that we can precisely pinpoint the rail lines that are affected the most from varying climate events. Finding a climate event dataset that has the longitude and latitude for all the climate events would help in carrying out this more magnified analysis of the weather events on a county or zip code basis. We were able to pinpoint locations of top rail centrality primarily because of the longitude and latitude attributes; therefore, having this for the weather data would be very beneficial in future mappings and overlapping the weather and rail data with the highest level of precision.
+
+This analysis would streamline the company’s economic evaluation of the regions most prone to rail vulnerabilities, which would aid Bank of America in its interactions with clients..Bank of America aims to provide insights to its clients regarding loan approvals, mortgages, and potential investments, particularly for those areas that are susceptible to impacted infrastructure.
+
+
+
+There were a few limitations that we ran into when analyzing our data:
 
 Column {.tabset}
 -------------------------------------
 
+### Weather Data Limitations
+1) As shown in several plots, the density of weather events is very high in certain states. For example, Texas, however, this makes logical sense since Texas is a very large state. Normalizing the distance for the states helped aid in minimizing this issue. Additionally, there are very few, comparatively, weather events occurring on the western coast. This could be due to a lack of recording such data. Since looking at 1950, the earliest year in this dataset, we can see it is a small subset of data. The lack of weather events on the West Coast could also be attributed to a higher concentration of other events that aren’t among the top 5 most frequent weather events. This ultimately makes it challenging to fully gauge the potential impact of weather events on the West Coast.
+2) Another limitation would be the inability to plot specific locations of certain weather events. There were quite a few events that had longitude and latitude missing, whether they were not recorded or because the event spanned a large area. This made it difficult to plot certain events with a high level of accuracy. 
+3) Finally, when it came to damage analysis, we were unable to differentiate between private personal property, commercial property, and rail lines, Therefore, we conducted overall damage analysis by event type and location, but there’s no specificity regarding damage done especially to rail lines. This could be something to look into moving forward. 
 
-### Suggestions
+### Rail Data Limitations
+1) The betweenness calculation, as mentioned previously, is sensitive to perspective. For example, the node seen as the most important in the entire United States wasn’t seen as the most important when a closer calculation was conducted on that specific state. Because of this phenomenon, boundary lines are not taken into account. They were considered when running the full U.S. but when zooming in on a state level, the intersecting rail lines across state boundaries were not considered since the rail line stopped at the edge of the state.
+2) Additionally, the computational intensity for running the betweenness on the entire United States is very high. If the cell containing this code started running at 1 am on Friday, then it didn’t finish running until 2 am on Monday. These extended run times restricted the approaches we can test and implement. There might be alternative metrics that could enhance analysis that have not been considered.
+3) More recently, after calculating the highest betweenness for the entire U.S., we found that the top node in Lima Ohio is a discontinued site. This is something to consider in how this ultimately affects our analysis, knowing that the top node is not currently an in-service junction. Additionally, this information is not included in our dataset, so we need to determine how many more important nodes are being considered that are also not currently operational.
+4) The overlay plot was having issues. Merging the two very dense datasets was difficult to do successfully and would require a bit more time to properly do so to create these plots. 
+5) Finally, we were unable to differentiate between cargo lines and passenger lines since this was not consistently stated within the data. Further research could be done to look into this more.
 
-### Future Work
+
+Future Work
+=======================================================================
+
+
+
+An important future step that should be taken is continuing our project progress by mapping the combined probabilistic model of rail lines and climate data. We created a probabilistic model with the climate data with our three-phased process, but we didn’t get to map the probabilistic model against the rail lines. This would have helped to indicate the areas in the US with the highest vulnerability when utilizing a predictive modeling method.  
+
+Another specified type of analysis that would be worth noting is categorizing high-impact and low-impact weather events as two different forms of climate events. This would help with getting a more specific understanding of the level of impact that rail infrastructure would undergo. As of now, we have all weather events combined in one when assessing secondary impacts, but all impacts aren’t realistically gauged at the same level when there is a wide range of weather events that have varying impacts. Subdividing the events into these various categories can help with making more situation-specific conclusions as to the type of impact that the weather events would pose on rail infrastructure. 
+
+In terms of rail line analysis, analyzing rail lines that run along borders would be something to look into. When our team explored the top centrality node for each state, the neighboring states were taken out of the picture, so lines that span multiple states were cut short in the state-by-state analysis. Top centrality nodes could differ when taking other connective state rail lines into account.
+
+
+
+
 
